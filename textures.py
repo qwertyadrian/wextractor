@@ -121,16 +121,14 @@ class TexReader:
             TextureHeight=read_n_bytes(self._fd),
             ImageWidth=read_n_bytes(self._fd),
             ImageHeight=read_n_bytes(self._fd),
-            UnkInt0=read_n_bytes(self._fd)
+            UnkInt0=read_n_bytes(self._fd),
         )
         if not is_valid_format(header.Format):
             raise InvalidTextureFormat()
         return header
 
     def _read_image_container(self) -> TexImageContainer:
-        container = TexImageContainer(
-            Magic=self._fd.read(8).decode()
-        )
+        container = TexImageContainer(Magic=self._fd.read(8).decode())
         self._fd.read(1)
         image_count = read_n_bytes(self._fd)
 
@@ -138,9 +136,7 @@ class TexReader:
             case "TEXB0001" | "TEXB0002":
                 pass
             case "TEXB0003":
-                container.ImageFormat = enums.FreeImageFormat(
-                    read_n_bytes(self._fd)
-                )
+                container.ImageFormat = enums.FreeImageFormat(read_n_bytes(self._fd))
             case _:
                 raise exceptions.UnknownMagicError(container.Magic)
 
@@ -154,9 +150,7 @@ class TexReader:
         reader = TexImageReader(self._fd, container, self.texture.header.Format)
 
         for i in range(image_count):
-            container.Images.append(
-                reader.read()
-            )
+            container.Images.append(reader.read())
 
         return container
 
@@ -176,10 +170,14 @@ class TexMipmapDecompressor:
         _buffer = DXTBuffer(self.mipmap.Width, self.mipmap.Height)
         match self.mipmap.Format:
             case enums.MipmapFormat.CompressedDXT5 | enums.MipmapFormat.CompressedDXT3:
-                self.mipmap.Bytes = _buffer.DXT5Decompress(io.BytesIO(self.mipmap.Bytes))
+                self.mipmap.Bytes = _buffer.DXT5Decompress(
+                    io.BytesIO(self.mipmap.Bytes)
+                )
                 self.mipmap.Format = enums.MipmapFormat.RGBA8888
             case enums.MipmapFormat.CompressedDXT1:
-                self.mipmap.Bytes = _buffer.DXT1Decompress(io.BytesIO(self.mipmap.Bytes))
+                self.mipmap.Bytes = _buffer.DXT1Decompress(
+                    io.BytesIO(self.mipmap.Bytes)
+                )
                 self.mipmap.Format = enums.MipmapFormat.RGBA8888
 
     def lz4decompress(self) -> bytes:
@@ -190,11 +188,12 @@ class TexMipmapDecompressor:
 
 
 class TexImageReader:
-    def __init__(self,
-                 fd: Union[BinaryIO, BytesIO],
-                 container: TexImageContainer,
-                 texFormat: enums.TexFormat
-                 ):
+    def __init__(
+        self,
+        fd: Union[BinaryIO, BytesIO],
+        container: TexImageContainer,
+        texFormat: enums.TexFormat,
+    ):
         self._texMipmapDecompressor = None
         self.ReadMipmapBytes = True
         self.DecompressMipmapBytes = True
@@ -205,8 +204,9 @@ class TexImageReader:
     def read(self):
         mipmapCount = read_n_bytes(self._fd)
         read_func = self.pickMipmapReader(self._container.ImageContainerVersion)
-        mipmapFormat = extensions.getFormatForTex(self._container.ImageFormat,
-                                                  self._texFormat)
+        mipmapFormat = extensions.getFormatForTex(
+            self._container.ImageFormat, self._texFormat
+        )
         image = TexImage()
         for i in range(mipmapCount):
             mipmap = read_func(self._fd)
@@ -224,7 +224,7 @@ class TexImageReader:
             Width=read_n_bytes(fd),
             Height=read_n_bytes(fd),
             Bytes=TexImageReader.readBytes(fd),
-            IsLZ4Compressed=False
+            IsLZ4Compressed=False,
         )
 
     @staticmethod
@@ -250,8 +250,10 @@ class TexImageReader:
         match version:
             case enums.TexImageContainerVersion.Version1:
                 return TexImageReader.readMipmapV1
-            case (enums.TexImageContainerVersion.Version2
-                  | enums.TexImageContainerVersion.Version3):
+            case (
+                enums.TexImageContainerVersion.Version2
+                | enums.TexImageContainerVersion.Version3
+            ):
                 return TexImageReader.readMipmapV2AndV3
             case _:
                 raise exceptions.InvalidContainerVersion

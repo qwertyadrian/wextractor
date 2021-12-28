@@ -71,7 +71,7 @@ class PKGV0001(PKGBase):
                 File(
                     name=self._read_str(),
                     offset=int.from_bytes(self._fd.read(4), "little", signed=False),
-                    size=int.from_bytes(self._fd.read(4), "little", signed=False)
+                    size=int.from_bytes(self._fd.read(4), "little", signed=False),
                 )
             )
             self._ds_ptr = self._fd.tell()  # data structure pointer
@@ -89,8 +89,3 @@ class PKGV0001(PKGBase):
         path /= filename
         with path.open("wb"):
             path.write_bytes(content)
-
-
-
-
-

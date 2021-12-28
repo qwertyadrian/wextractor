@@ -8,7 +8,7 @@ class TexFormat(Enum):
     DXT1 = 7
     RG88 = 8
     R8 = 9
-    
+
 
 class TexFlags(Enum):
     NONE = 0
@@ -21,7 +21,7 @@ class TexFlags(Enum):
     Unk5 = 32
     Unk6 = 64
     Unk7 = 128
-    
+
 
 class FreeImageFormat(Enum):
     # Unknown format (returned value only never use it as input value)

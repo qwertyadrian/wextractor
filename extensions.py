@@ -9,8 +9,14 @@ def is_valid_format(enum: Union[TexFormat, FreeImageFormat]):
         return -1 <= enum.value <= 34
     else:
         match enum:
-            case (TexFormat.RGBA8888 | TexFormat.DXT5 | TexFormat.DXT3
-                  | TexFormat.DXT1 | TexFormat.RG88 | TexFormat.R8):
+            case (
+                TexFormat.RGBA8888
+                | TexFormat.DXT5
+                | TexFormat.DXT3
+                | TexFormat.DXT1
+                | TexFormat.RG88
+                | TexFormat.R8
+            ):
                 return True
             case _:
                 return False
