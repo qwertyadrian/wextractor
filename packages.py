@@ -1,8 +1,8 @@
 import io
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import BinaryIO
 from pathlib import Path
+from typing import BinaryIO
 
 
 @dataclass
