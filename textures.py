@@ -205,7 +205,10 @@ class TexReader:
             case "TEXB0001" | "TEXB0002":
                 pass
             case "TEXB0003":
-                container.ImageFormat = enums.FreeImageFormat(read_n_bytes(self._fd))
+                try:
+                    container.ImageFormat = enums.FreeImageFormat(read_n_bytes(self._fd))
+                except ValueError:
+                    container.ImageFormat = enums.FreeImageFormat.FIF_UNKNOWN
             case _:
                 raise exceptions.UnknownMagicError(container.Magic)
 

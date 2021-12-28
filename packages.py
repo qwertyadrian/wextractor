@@ -83,13 +83,9 @@ class PKGV0001(PKGBase):
 
     def save_file(self, file: File):
         content = self.get_file(file)
-        match file.name.split("/"):
-            case [str(path), str(filename)]:
-                path = Path(path)
-                path.mkdir(parents=True, exist_ok=True)
-                path /= filename
-            case [str(filename)]:
-                path = Path(".")
-                path /= filename
+        path = Path(file.name)
+        if path.match("*/*.*"):
+            path.parent.mkdir(parents=True, exist_ok=True)
+
         with path.open("wb"):
             path.write_bytes(content)
