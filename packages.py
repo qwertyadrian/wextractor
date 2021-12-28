@@ -2,7 +2,7 @@ import io
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, List
 
 
 @dataclass
@@ -42,7 +42,7 @@ class PKGV0001(PKGBase):
     def __init__(self, filename: str):
         self.filename: str = filename
         self.filecount: int = 0
-        self.files: list = list()
+        self.files: List[File] = list()
         self._fd: BinaryIO
         self._ds_ptr: int = 0
         self._prepare_file()
@@ -83,9 +83,13 @@ class PKGV0001(PKGBase):
 
     def save_file(self, file: File):
         content = self.get_file(file)
-        path, filename = file.name.split("/")
-        path = Path(path)
-        path.mkdir(parents=True, exist_ok=True)
-        path /= filename
+        match file.name.split("/"):
+            case [str(path), str(filename)]:
+                path = Path(path)
+                path.mkdir(parents=True, exist_ok=True)
+                path /= filename
+            case [str(filename)]:
+                path = Path(".")
+                path /= filename
         with path.open("wb"):
             path.write_bytes(content)

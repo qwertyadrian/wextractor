@@ -1,9 +1,10 @@
 import io
+import struct
 from dataclasses import dataclass, field
 from io import BytesIO
 from typing import BinaryIO, Union, List
 
-import lz4.frame
+import lz4.block
 from DXTDecompress import DXTBuffer
 
 import enums
@@ -53,8 +54,70 @@ class TexImageContainer:
     ImageFormat: enums.FreeImageFormat = enums.FreeImageFormat.FIF_UNKNOWN
 
 
+@dataclass
+class TexFrameInfo:
+    ImageId: int
+    FrameTime: float
+    X: float
+    Y: float
+    Width: float
+    WidthY: float
+    HeightX: float
+    Height: float
+
+
+@dataclass
 class TexFrameInfoContainer:
-    pass
+    _fd: Union[BinaryIO, BytesIO]
+    Magic: str = None
+    Frames: List[TexFrameInfo] = field(default_factory=list)
+    GifWidth: int = 0
+    GifHeight: int = 0
+
+    def read(self):
+        self.Magic = self._fd.read(8).decode()
+        self._fd.read(1)
+        frameConut = read_n_bytes(self._fd)
+
+        match self.Magic:
+            case "TEXS0001":
+                for i in range(frameConut):
+                    self.Frames.append(
+                        TexFrameInfo(
+                            ImageId=read_n_bytes(self._fd),
+                            FrameTime=struct.unpack("<i", self._fd.read(4))[0],
+                            X=read_n_bytes(self._fd),
+                            Y=read_n_bytes(self._fd),
+                            Width=read_n_bytes(self._fd),
+                            WidthY=read_n_bytes(self._fd),
+                            HeightX=read_n_bytes(self._fd),
+                            Height=read_n_bytes(self._fd),
+                        )
+                    )
+            case "TEXS0002": pass
+            case "TEXS0003":
+                self.GifWidth = read_n_bytes(self._fd)
+                self.GifHeight = read_n_bytes(self._fd)
+                for i in range(frameConut):
+                    self.Frames.append(
+                        TexFrameInfo(
+                            ImageId=read_n_bytes(self._fd),
+                            FrameTime=struct.unpack("<i", self._fd.read(4))[0],
+                            X=struct.unpack("<i", self._fd.read(4))[0],
+                            Y=struct.unpack("<i", self._fd.read(4))[0],
+                            Width=struct.unpack("<i", self._fd.read(4))[0],
+                            WidthY=struct.unpack("<i", self._fd.read(4))[0],
+                            HeightX=struct.unpack("<i", self._fd.read(4))[0],
+                            Height=struct.unpack("<i", self._fd.read(4))[0],
+                        )
+                    )
+            case _:
+                raise exceptions.UnknownMagicError()
+
+        if self.GifWidth == 0 or self.GifHeight == 0:
+            self.GifWidth = int(self.Frames[0].Width)
+            self.GifHeight = int(self.Frames[0].Height)
+
 
 
 @dataclass
@@ -97,15 +160,21 @@ class Texture:
 
 
 class TexReader:
-    def __init__(self, file: Union[str, BinaryIO, BytesIO]):
+    def __init__(self, file: Union[str, bytes, BinaryIO, BytesIO]):
         if isinstance(file, str):
             self._fd: BinaryIO = open(file, "r+b")
+        elif isinstance(file, bytes):
+            self._fd: BytesIO = io.BytesIO(file)
         else:
             self._fd = file
         self.texture = Texture()
         self._read_magic()
         self.texture.header = self._read_header()
         self.texture.images_container = self._read_image_container()
+        if self.texture.is_gif:
+            self.texture.frame_info_container = TexFrameInfoContainer(self._fd)
+            self.texture.frame_info_container.read()
+
 
     def _read_magic(self):
         self.texture.magic1 = self._fd.read(8).decode()
@@ -181,7 +250,10 @@ class TexMipmapDecompressor:
                 self.mipmap.Format = enums.MipmapFormat.RGBA8888
 
     def lz4decompress(self) -> bytes:
-        decompressed = lz4.frame.decompress(self.mipmap.Bytes)
+        decompressed = lz4.block.decompress(
+            self.mipmap.Bytes,
+            uncompressed_size=self.mipmap.DecompressedBytesCount
+        )
         if len(decompressed) != self.mipmap.DecompressedBytesCount:
             raise exceptions.DecompressionError()
         return decompressed
