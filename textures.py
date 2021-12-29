@@ -159,8 +159,9 @@ class TexReader:
             raise InvalidTextureFormat()
 
     def _read_image_container(self) -> TexImageContainer:
-        container = TexImageContainer(Magic=self._fd.read(8).decode())
-        self._fd.read(1)
+        container = TexImageContainer(
+            Magic=read_n_bytes(self._fd, "<8sx").decode()
+        )
         image_count = read_n_bytes(self._fd)
 
         match container.Magic:

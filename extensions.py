@@ -164,3 +164,75 @@ def freeImageFormatToMipmapFormat(freeImageFormat) -> MipmapFormat:
 
         case _:
             raise Exception("Argument out of range")
+
+
+def getFileExtension(imageFormat: MipmapFormat) -> str:
+    match imageFormat:
+        case MipmapFormat.ImageBMP:
+            return "bmp"
+        case MipmapFormat.ImageICO:
+            return "ico"
+        case MipmapFormat.ImageJPEG:
+            return "jpg"
+        case MipmapFormat.ImageJNG:
+            return "jng"
+        case MipmapFormat.ImageKOALA:
+            return "koa"
+        case MipmapFormat.ImageLBM:
+            return "lbm"
+        case MipmapFormat.ImageIFF:
+            return "iff"
+        case MipmapFormat.ImageMNG:
+            return "mng"
+        case MipmapFormat.ImagePBM | MipmapFormat.ImagePBMRAW:
+            return "pbm"
+        case MipmapFormat.ImagePCD:
+            return "pcd"
+        case MipmapFormat.ImagePCX:
+            return "pcx"
+        case MipmapFormat.ImagePGM | MipmapFormat.ImagePGMRAW:
+            return "pgm"
+        case MipmapFormat.ImagePNG:
+            return "png"
+        case MipmapFormat.ImagePPM | MipmapFormat.ImagePPMRAW:
+            return "ppm"
+        case MipmapFormat.ImageRAS:
+            return "ras"
+        case MipmapFormat.ImageTARGA:
+            return "tga"
+        case MipmapFormat.ImageTIFF:
+            return "tif"
+        case MipmapFormat.ImageWBMP:
+            return "wbmp"
+        case MipmapFormat.ImagePSD:
+            return "psd"
+        case MipmapFormat.ImageCUT:
+            return "cut"
+        case MipmapFormat.ImageXBM:
+            return "xbm"
+        case MipmapFormat.ImageXPM:
+            return "xpm"
+        case MipmapFormat.ImageDDS:
+            return "dds"
+        case MipmapFormat.ImageGIF:
+            return "gif"
+        case MipmapFormat.ImageHDR:
+            return "hdr"
+        case MipmapFormat.ImageFAXG3:
+            return "g3"
+        case MipmapFormat.ImageSGI:
+            return "sgi"
+        case MipmapFormat.ImageEXR:
+            return "exr"
+        case MipmapFormat.ImageJ2K:
+            return "j2k"
+        case MipmapFormat.ImageJP2:
+            return "jp2"
+        case MipmapFormat.ImagePFM:
+            return "pfm"
+        case MipmapFormat.ImagePICT:
+            return "pict"
+        case MipmapFormat.ImageRAW:
+            return "raw"
+        case _:
+            return "png"

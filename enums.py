@@ -1,4 +1,4 @@
-from enum import Enum, auto
+from enum import Enum, auto, IntFlag
 
 
 class TexFormat(Enum):
@@ -10,7 +10,7 @@ class TexFormat(Enum):
     R8 = 9
 
 
-class TexFlags(Enum):
+class TexFlags(IntFlag):
     NONE = 0
     NoInterpolation = 1
     ClampUVs = 2
