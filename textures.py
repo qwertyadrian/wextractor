@@ -1,5 +1,4 @@
 import io
-import struct
 from dataclasses import dataclass, field
 from io import BytesIO
 from typing import BinaryIO, List, Union
@@ -15,7 +14,7 @@ from extensions import is_valid_format, read_n_bytes
 
 
 @dataclass
-class TexHeader:
+class Texture:
     Format: enums.TexFormat
     Flags: enums.TexFlags
     TextureWidth: int
@@ -23,6 +22,37 @@ class TexHeader:
     ImageWidth: int
     ImageHeight: int
     UnkInt0: int
+    images_container: "TexImageContainer" = None
+    frame_info_container: "TexFrameInfoContainer" = None
+    _magic1: str = None
+    _magic2: str = None
+
+    @property
+    def is_gif(self) -> bool:
+        return self.has_flag(enums.TexFlags.IsGif)
+
+    @property
+    def magic1(self):
+        return self._magic1
+
+    @magic1.setter
+    def magic1(self, value):
+        if value != "TEXV0005":
+            raise ValueError("Incorrect magic1")
+        self._magic1 = value
+
+    @property
+    def magic2(self):
+        return self._magic2
+
+    @magic2.setter
+    def magic2(self, value):
+        if value != "TEXI0001":
+            raise ValueError("Incorrect magic2")
+        self._magic2 = value
+
+    def has_flag(self, flag: enums.TexFlags) -> bool:
+        return (self.Flags.value & flag.value) == flag.value
 
 
 @dataclass
@@ -71,43 +101,21 @@ class TexFrameInfoContainer:
     GifHeight: int = 0
 
     def read(self):
-        self.Magic = self._fd.read(8).decode()
-        self._fd.read(1)
+        self.Magic = read_n_bytes(self._fd, "<8sx").decode()
         frameConut = read_n_bytes(self._fd)
 
         match self.Magic:
             case "TEXS0001":
                 for i in range(frameConut):
-                    self.Frames.append(
-                        TexFrameInfo(
-                            ImageId=read_n_bytes(self._fd),
-                            FrameTime=struct.unpack("<i", self._fd.read(4))[0],
-                            X=read_n_bytes(self._fd),
-                            Y=read_n_bytes(self._fd),
-                            Width=read_n_bytes(self._fd),
-                            WidthY=read_n_bytes(self._fd),
-                            HeightX=read_n_bytes(self._fd),
-                            Height=read_n_bytes(self._fd),
-                        )
-                    )
+                    data = read_n_bytes(self._fd, "<ifiiiiii")
+                    self.Frames.append(TexFrameInfo(*data))
             case "TEXS0002":
                 pass
             case "TEXS0003":
-                self.GifWidth = read_n_bytes(self._fd)
-                self.GifHeight = read_n_bytes(self._fd)
+                self.GifWidth, self.GifHeight = read_n_bytes(self._fd, "<ii")
                 for i in range(frameConut):
-                    self.Frames.append(
-                        TexFrameInfo(
-                            ImageId=read_n_bytes(self._fd),
-                            FrameTime=struct.unpack("<i", self._fd.read(4))[0],
-                            X=struct.unpack("<i", self._fd.read(4))[0],
-                            Y=struct.unpack("<i", self._fd.read(4))[0],
-                            Width=struct.unpack("<i", self._fd.read(4))[0],
-                            WidthY=struct.unpack("<i", self._fd.read(4))[0],
-                            HeightX=struct.unpack("<i", self._fd.read(4))[0],
-                            Height=struct.unpack("<i", self._fd.read(4))[0],
-                        )
-                    )
+                    data = read_n_bytes(self._fd, "<ifffffff")
+                    self.Frames.append(TexFrameInfo(*data))
             case _:
                 raise exceptions.UnknownMagicError()
 
@@ -116,45 +124,11 @@ class TexFrameInfoContainer:
             self.GifHeight = int(self.Frames[0].Height)
 
 
-@dataclass
-class Texture:
-    _magic1: str = None
-    _magic2: str = None
-    header: TexHeader = None
-    images_container: TexImageContainer = None
-    frame_info_container: TexFrameInfoContainer = None
-
-    @property
-    def is_gif(self) -> bool:
-        return self.has_flag(enums.TexFlags.IsGif)
-
-    @property
-    def magic1(self):
-        return self._magic1
-
-    @magic1.setter
-    def magic1(self, value):
-        if value != "TEXV0005":
-            raise ValueError("Incorrect magic1")
-        self._magic1 = value
-
-    @property
-    def magic2(self):
-        return self._magic2
-
-    @magic2.setter
-    def magic2(self, value):
-        if value != "TEXI0001":
-            raise ValueError("Incorrect magic2")
-        self._magic2 = value
-
-    def has_flag(self, flag: enums.TexFlags) -> bool:
-        if not self.header:
-            return False
-        return (self.header.Flags.value & flag.value) == flag.value
-
-
 class TexReader:
+    # equal to char[8], pad byte, char[8], pad byte and 7 int
+    # in little-endian byte order
+    HEADER_STRUCT = "<8sx8sxiiiiiii"
+
     def __init__(self, file: Union[str, bytes, BinaryIO, BytesIO]):
         if isinstance(file, str):
             self._fd: BinaryIO = open(file, "r+b")
@@ -162,33 +136,27 @@ class TexReader:
             self._fd: BytesIO = io.BytesIO(file)
         else:
             self._fd = file
-        self.texture: Texture = Texture()
-        self._read_magic()
-        self.texture.header = self._read_header()
+        self._read_header()
         self.texture.images_container = self._read_image_container()
         if self.texture.is_gif:
             self.texture.frame_info_container = TexFrameInfoContainer(self._fd)
             self.texture.frame_info_container.read()
 
-    def _read_magic(self):
-        self.texture.magic1 = self._fd.read(8).decode()
-        self._fd.read(1)
-        self.texture.magic2 = self._fd.read(8).decode()
-        self._fd.read(1)
-
-    def _read_header(self) -> TexHeader:
-        header = TexHeader(
-            Format=enums.TexFormat(read_n_bytes(self._fd)),
-            Flags=enums.TexFlags(read_n_bytes(self._fd)),
-            TextureWidth=read_n_bytes(self._fd),
-            TextureHeight=read_n_bytes(self._fd),
-            ImageWidth=read_n_bytes(self._fd),
-            ImageHeight=read_n_bytes(self._fd),
-            UnkInt0=read_n_bytes(self._fd),
+    def _read_header(self):
+        data = read_n_bytes(self._fd, self.HEADER_STRUCT)
+        self.texture = Texture(
+            Format=enums.TexFormat(data[2]),
+            Flags=enums.TexFlags(data[3]),
+            TextureWidth=data[4],
+            TextureHeight=data[5],
+            ImageWidth=data[6],
+            ImageHeight=data[7],
+            UnkInt0=data[8],
         )
-        if not is_valid_format(header.Format):
+        self.texture.magic1 = data[0].decode()
+        self.texture.magic2 = data[1].decode()
+        if not is_valid_format(self.texture.Format):
             raise InvalidTextureFormat()
-        return header
 
     def _read_image_container(self) -> TexImageContainer:
         container = TexImageContainer(Magic=self._fd.read(8).decode())
@@ -215,7 +183,7 @@ class TexReader:
         if not is_valid_format(container.ImageFormat):
             raise InvalidTextureFormat()
 
-        reader = TexImage(self._fd, container, self.texture.header.Format)
+        reader = TexImage(self._fd, container, self.texture.Format)
         reader.read()
 
         for i in range(image_count):
@@ -263,7 +231,7 @@ class TexImage:
     _fd: Union[BinaryIO, BytesIO]
     _container: TexImageContainer
     _texFormat: enums.TexFormat
-    ReadMipmapBytes: bool = True
+    # ReadMipmapBytes: bool = True  # variable not used
     DecompressMipmapBytes: bool = True
     Mipmaps: List[TexMipmap] = field(default_factory=list)
 
@@ -280,7 +248,7 @@ class TexImage:
         for i in range(mipmapCount):
             mipmap = read_func(self._fd)
             mipmap.Format = mipmapFormat
-            if self.DecompressMipmapBytes:
+            if self.DecompressMipmapBytes:  # redundant condition
                 _decompressor = TexMipmapDecompressor(mipmap)
                 _decompressor.decompressMipmap()
             self.Mipmaps.append(mipmap)

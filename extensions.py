@@ -1,5 +1,6 @@
 from io import BytesIO
 from typing import Union, BinaryIO
+import struct
 
 from enums import FreeImageFormat, TexFormat, MipmapFormat
 
@@ -22,8 +23,13 @@ def is_valid_format(enum: Union[TexFormat, FreeImageFormat]):
                 return False
 
 
-def read_n_bytes(fd: Union[BinaryIO, BytesIO], n: int = 4):
-    return int.from_bytes(fd.read(n), "little", signed=False)
+def read_n_bytes(fd: Union[BinaryIO, BytesIO], fmt: str = "<i"):
+    size = struct.calcsize(fmt)
+    data = struct.unpack(fmt, fd.read(size))
+    if len(data) == 1:
+        return data[0]
+    else:
+        return data
 
 
 def getFormatForTex(imageFormat: FreeImageFormat, texFormat: TexFormat) -> MipmapFormat:
