@@ -66,7 +66,7 @@ class PKGV0001(PKGBase):
         return buf
 
     def _read_files(self):
-        for i in range(0, self.filecount):
+        for i in range(self.filecount):
             self.files.append(
                 File(
                     name=self._read_str(),
