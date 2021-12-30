@@ -196,3 +196,9 @@ class TexImageContainerVersion(Enum):
     Version1 = 1
     Version2 = 2
     Version3 = 3
+
+
+class DXTFlags(IntFlag):
+    DXT1 = 1
+    DXT3 = 1 << 1
+    DXT5 = 1 << 2

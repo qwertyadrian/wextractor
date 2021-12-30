@@ -8,7 +8,7 @@ import lz4.block
 import enums
 import exceptions
 import extensions
-from DXTDecompress import DXTBuffer
+from DXT import decompressImage
 from exceptions import InvalidTextureFormat
 from extensions import is_valid_format, read_n_bytes
 
@@ -205,16 +205,23 @@ class TexMipmapDecompressor:
         if self.mipmap.Format.isImage(self.mipmap.Format):
             return
 
-        _buffer = DXTBuffer(self.mipmap.Width, self.mipmap.Height)
         match self.mipmap.Format:
-            case enums.MipmapFormat.CompressedDXT5 | enums.MipmapFormat.CompressedDXT3:
-                self.mipmap.Bytes = _buffer.DXT5Decompress(
-                    io.BytesIO(self.mipmap.Bytes)
+            case enums.MipmapFormat.CompressedDXT5:
+                self.mipmap.Bytes = decompressImage(
+                    self.mipmap.Width, self.mipmap.Height,
+                    self.mipmap.Bytes, enums.DXTFlags.DXT5
+                )
+                self.mipmap.Format = enums.MipmapFormat.RGBA8888
+            case enums.MipmapFormat.CompressedDXT3:
+                self.mipmap.Bytes = decompressImage(
+                    self.mipmap.Width, self.mipmap.Height,
+                    self.mipmap.Bytes, enums.DXTFlags.DXT3
                 )
                 self.mipmap.Format = enums.MipmapFormat.RGBA8888
             case enums.MipmapFormat.CompressedDXT1:
-                self.mipmap.Bytes = _buffer.DXT1Decompress(
-                    io.BytesIO(self.mipmap.Bytes)
+                self.mipmap.Bytes = decompressImage(
+                    self.mipmap.Width, self.mipmap.Height,
+                    self.mipmap.Bytes, enums.DXTFlags.DXT1
                 )
                 self.mipmap.Format = enums.MipmapFormat.RGBA8888
 
