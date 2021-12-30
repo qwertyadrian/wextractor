@@ -15,15 +15,15 @@ from extensions import is_valid_format, read_n_bytes
 
 @dataclass
 class Texture:
-    Format: enums.TexFormat
-    Flags: enums.TexFlags
-    TextureWidth: int
-    TextureHeight: int
-    ImageWidth: int
-    ImageHeight: int
-    UnkInt0: int
-    images_container: "TexImageContainer" = None
-    frame_info_container: "TexFrameInfoContainer" = None
+    format: enums.TexFormat
+    flags: enums.TexFlags
+    textureWidth: int
+    textureHeight: int
+    imageWidth: int
+    imageHeight: int
+    unkInt0: int
+    imagesContainer: "TexImageContainer" = None
+    frameInfoContainer: "TexFrameInfoContainer" = None
     _magic1: str = None
     _magic2: str = None
 
@@ -52,20 +52,20 @@ class Texture:
         self._magic2 = value
 
     def has_flag(self, flag: enums.TexFlags) -> bool:
-        return (self.Flags.value & flag.value) == flag.value
+        return (self.flags.value & flag.value) == flag.value
 
 
 @dataclass
 class TexMipmap:
-    Bytes: bytes = field(repr=False)
-    Width: int = None
-    Height: int = None
-    DecompressedBytesCount: int = None
-    IsLZ4Compressed: bool = None
-    Format: enums.MipmapFormat = None
+    data: bytes = field(repr=False)
+    width: int = None
+    height: int = None
+    decompressedBytesCount: int = None
+    isLZ4Compressed: bool = None
+    format: enums.MipmapFormat = None
 
     def getBytesStream(self) -> BytesIO:
-        return io.BytesIO(self.Bytes)
+        return io.BytesIO(self.data)
 
 
 @dataclass
@@ -137,25 +137,25 @@ class TexReader:
         else:
             self._fd = file
         self._read_header()
-        self.texture.images_container = self._read_image_container()
+        self.texture.imagesContainer = self._read_image_container()
         if self.texture.is_gif:
-            self.texture.frame_info_container = TexFrameInfoContainer(self._fd)
-            self.texture.frame_info_container.read()
+            self.texture.frameInfoContainer = TexFrameInfoContainer(self._fd)
+            self.texture.frameInfoContainer.read()
 
     def _read_header(self):
         data = read_n_bytes(self._fd, self.HEADER_STRUCT)
         self.texture = Texture(
-            Format=enums.TexFormat(data[2]),
-            Flags=enums.TexFlags(data[3]),
-            TextureWidth=data[4],
-            TextureHeight=data[5],
-            ImageWidth=data[6],
-            ImageHeight=data[7],
-            UnkInt0=data[8],
+            format=enums.TexFormat(data[2]),
+            flags=enums.TexFlags(data[3]),
+            textureWidth=data[4],
+            textureHeight=data[5],
+            imageWidth=data[6],
+            imageHeight=data[7],
+            unkInt0=data[8],
         )
         self.texture.magic1 = data[0].decode()
         self.texture.magic2 = data[1].decode()
-        if not is_valid_format(self.texture.Format):
+        if not is_valid_format(self.texture.format):
             raise InvalidTextureFormat()
 
     def _read_image_container(self) -> TexImageContainer:
@@ -184,7 +184,7 @@ class TexReader:
         if not is_valid_format(container.ImageFormat):
             raise InvalidTextureFormat()
 
-        reader = TexImage(self._fd, container, self.texture.Format)
+        reader = TexImage(self._fd, container, self.texture.format)
         reader.read()
 
         for i in range(image_count):
@@ -198,38 +198,38 @@ class TexMipmapDecompressor:
         self.mipmap = mipmap
 
     def decompressMipmap(self):
-        if self.mipmap.IsLZ4Compressed:
-            self.mipmap.Bytes = self.lz4decompress()
-            self.mipmap.IsLZ4Compressed = False
+        if self.mipmap.isLZ4Compressed:
+            self.mipmap.data = self.lz4decompress()
+            self.mipmap.isLZ4Compressed = False
 
-        if self.mipmap.Format.isImage(self.mipmap.Format):
+        if self.mipmap.format.isImage(self.mipmap.format):
             return
 
-        match self.mipmap.Format:
+        match self.mipmap.format:
             case enums.MipmapFormat.CompressedDXT5:
-                self.mipmap.Bytes = decompressImage(
-                    self.mipmap.Width, self.mipmap.Height,
-                    self.mipmap.Bytes, enums.DXTFlags.DXT5
+                self.mipmap.data = decompressImage(
+                    self.mipmap.width, self.mipmap.height,
+                    self.mipmap.data, enums.DXTFlags.DXT5
                 )
-                self.mipmap.Format = enums.MipmapFormat.RGBA8888
+                self.mipmap.format = enums.MipmapFormat.RGBA8888
             case enums.MipmapFormat.CompressedDXT3:
-                self.mipmap.Bytes = decompressImage(
-                    self.mipmap.Width, self.mipmap.Height,
-                    self.mipmap.Bytes, enums.DXTFlags.DXT3
+                self.mipmap.data = decompressImage(
+                    self.mipmap.width, self.mipmap.height,
+                    self.mipmap.data, enums.DXTFlags.DXT3
                 )
-                self.mipmap.Format = enums.MipmapFormat.RGBA8888
+                self.mipmap.format = enums.MipmapFormat.RGBA8888
             case enums.MipmapFormat.CompressedDXT1:
-                self.mipmap.Bytes = decompressImage(
-                    self.mipmap.Width, self.mipmap.Height,
-                    self.mipmap.Bytes, enums.DXTFlags.DXT1
+                self.mipmap.data = decompressImage(
+                    self.mipmap.width, self.mipmap.height,
+                    self.mipmap.data, enums.DXTFlags.DXT1
                 )
-                self.mipmap.Format = enums.MipmapFormat.RGBA8888
+                self.mipmap.format = enums.MipmapFormat.RGBA8888
 
     def lz4decompress(self) -> bytes:
         decompressed = lz4.block.decompress(
-            self.mipmap.Bytes, uncompressed_size=self.mipmap.DecompressedBytesCount
+            self.mipmap.data, uncompressed_size=self.mipmap.decompressedBytesCount
         )
-        if len(decompressed) != self.mipmap.DecompressedBytesCount:
+        if len(decompressed) != self.mipmap.decompressedBytesCount:
             raise exceptions.DecompressionError()
         return decompressed
 
@@ -239,13 +239,13 @@ class TexImage:
     _fd: Union[BinaryIO, BytesIO]
     _container: TexImageContainer
     _texFormat: enums.TexFormat
-    # ReadMipmapBytes: bool = True  # variable not used
-    DecompressMipmapBytes: bool = True
-    Mipmaps: List[TexMipmap] = field(default_factory=list)
+    # readMipmapBytes: bool = True  # variable not used
+    decompressMipmapBytes: bool = True
+    mipmaps: List[TexMipmap] = field(default_factory=list)
 
     @property
     def firstMipmap(self):
-        return self.Mipmaps[0]
+        return self.mipmaps[0]
 
     def read(self):
         mipmapCount = read_n_bytes(self._fd)
@@ -255,29 +255,29 @@ class TexImage:
         )
         for i in range(mipmapCount):
             mipmap = read_func(self._fd)
-            mipmap.Format = mipmapFormat
-            if self.DecompressMipmapBytes:  # redundant condition
+            mipmap.format = mipmapFormat
+            if self.decompressMipmapBytes:  # redundant condition
                 _decompressor = TexMipmapDecompressor(mipmap)
                 _decompressor.decompressMipmap()
-            self.Mipmaps.append(mipmap)
+            self.mipmaps.append(mipmap)
 
     @staticmethod
     def readMipmapV1(fd: Union[BinaryIO, BytesIO]):
         return TexMipmap(
-            Width=read_n_bytes(fd),
-            Height=read_n_bytes(fd),
-            Bytes=TexImage.readBytes(fd),
-            IsLZ4Compressed=False,
+            width=read_n_bytes(fd),
+            height=read_n_bytes(fd),
+            data=TexImage.readBytes(fd),
+            isLZ4Compressed=False,
         )
 
     @staticmethod
     def readMipmapV2AndV3(fd: Union[BinaryIO, BytesIO]):
         return TexMipmap(
-            Width=read_n_bytes(fd),
-            Height=read_n_bytes(fd),
-            IsLZ4Compressed=read_n_bytes(fd) == 1,
-            DecompressedBytesCount=read_n_bytes(fd),
-            Bytes=TexImage.readBytes(fd),
+            width=read_n_bytes(fd),
+            height=read_n_bytes(fd),
+            isLZ4Compressed=read_n_bytes(fd) == 1,
+            decompressedBytesCount=read_n_bytes(fd),
+            data=TexImage.readBytes(fd),
         )
 
     @staticmethod
