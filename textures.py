@@ -12,48 +12,6 @@ from extensions import is_valid_format, read_n_bytes
 
 
 @dataclass
-class Texture:
-    format: enums.TexFormat
-    flags: enums.TexFlags
-    textureWidth: int
-    textureHeight: int
-    imageWidth: int
-    imageHeight: int
-    unkInt0: int
-    imagesContainer: "TexImageContainer" = None
-    frameInfoContainer: "TexFrameInfoContainer" = None
-    _magic1: str = None
-    _magic2: str = None
-
-    @property
-    def is_gif(self) -> bool:
-        return self.has_flag(enums.TexFlags.IsGif)
-
-    @property
-    def magic1(self):
-        return self._magic1
-
-    @magic1.setter
-    def magic1(self, value):
-        if value != "TEXV0005":
-            raise ValueError("Incorrect magic1")
-        self._magic1 = value
-
-    @property
-    def magic2(self):
-        return self._magic2
-
-    @magic2.setter
-    def magic2(self, value):
-        if value != "TEXI0001":
-            raise ValueError("Incorrect magic2")
-        self._magic2 = value
-
-    def has_flag(self, flag: enums.TexFlags) -> bool:
-        return (self.flags.value & flag.value) == flag.value
-
-
-@dataclass
 class TexMipmap:
     data: bytes = field(repr=False)
     width: int = None
@@ -122,7 +80,7 @@ class TexFrameInfoContainer:
             self.GifHeight = int(self.Frames[0].Height)
 
 
-class TexReader:
+class Texture:
     # equal to char[8], pad byte, char[8], pad byte and 7 int
     # in little-endian byte order
     HEADER_STRUCT = "<8sx8sxiiiiiii"
@@ -135,60 +93,69 @@ class TexReader:
         else:
             self._fd = file
         self._read_header()
-        self.texture.imagesContainer = self._read_image_container()
-        if self.texture.is_gif:
-            self.texture.frameInfoContainer = TexFrameInfoContainer(self._fd)
-            self.texture.frameInfoContainer.read()
+        self._read_image_container()
+
+        self.frameInfoContainer = None
+        if self.is_gif:
+            self.frameInfoContainer = TexFrameInfoContainer(self._fd)
+            self.frameInfoContainer.read()
 
     def _read_header(self):
         data = read_n_bytes(self._fd, self.HEADER_STRUCT)
-        self.texture = Texture(
-            format=enums.TexFormat(data[2]),
-            flags=enums.TexFlags(data[3]),
-            textureWidth=data[4],
-            textureHeight=data[5],
-            imageWidth=data[6],
-            imageHeight=data[7],
-            unkInt0=data[8],
-        )
-        self.texture.magic1 = data[0].decode()
-        self.texture.magic2 = data[1].decode()
-        if not is_valid_format(self.texture.format):
+
+        self._magic1 = data[0].decode()
+        self._magic2 = data[1].decode()
+        if self._magic1 != "TEXV0005" or self._magic2 != "TEXI0001":
+            raise ValueError("Incorrect magic value")
+        self.format = enums.TexFormat(data[2])
+        self.flags = enums.TexFlags(data[3])
+        self.textureWidth = data[4]
+        self.textureHeight = data[5]
+        self.imageWidth = data[6]
+        self.imageHeight = data[7]
+        self.unkInt0 = data[8]
+
+        if not is_valid_format(self.format):
             raise InvalidTextureFormat()
 
-    def _read_image_container(self) -> TexImageContainer:
-        container = TexImageContainer(
+    def _read_image_container(self):
+        self.imagesContainer = TexImageContainer(
             Magic=read_n_bytes(self._fd, "<8sx").decode()
         )
         image_count = read_n_bytes(self._fd)
 
-        match container.Magic:
+        match self.imagesContainer.Magic:
             case "TEXB0001" | "TEXB0002":
                 pass
             case "TEXB0003":
                 try:
-                    container.ImageFormat = enums.FreeImageFormat(
+                    self.imagesContainer.ImageFormat = enums.FreeImageFormat(
                         read_n_bytes(self._fd)
                     )
                 except ValueError:
-                    container.ImageFormat = enums.FreeImageFormat.FIF_UNKNOWN
+                    self.imagesContainer.ImageFormat = enums.FreeImageFormat.FIF_UNKNOWN
             case _:
-                raise exceptions.UnknownMagicError(container.Magic)
+                raise exceptions.UnknownMagicError(self.imagesContainer.Magic)
 
-        container.ImageContainerVersion = enums.TexImageContainerVersion(
-            int(container.Magic[4:])
+        self.imagesContainer.ImageContainerVersion = enums.TexImageContainerVersion(
+            int(self.imagesContainer.Magic[4:])
         )
 
-        if not is_valid_format(container.ImageFormat):
+        if not is_valid_format(self.imagesContainer.ImageFormat):
             raise InvalidTextureFormat()
 
-        reader = TexImage(self._fd, container, self.texture.format)
+        reader = TexImage(self._fd, self.imagesContainer, self.format)
         reader.read()
 
         for i in range(image_count):
-            container.Images.append(reader)
+            self.imagesContainer.Images.append(reader)
 
-        return container
+    @property
+    def is_gif(self) -> bool:
+        return self.has_flag(enums.TexFlags.IsGif)
+
+    def has_flag(self, flag: enums.TexFlags) -> bool:
+        return (self.flags.value & flag.value) == flag.value
 
 
 @dataclass
