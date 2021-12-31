@@ -8,7 +8,7 @@ import enums
 import exceptions
 import extensions
 from exceptions import InvalidTextureFormat
-from extensions import is_valid_format, read_n_bytes
+from extensions import isValidFormat, readNBytes
 
 
 @dataclass
@@ -26,58 +26,62 @@ class TexMipmap:
 
 @dataclass
 class TexImageContainer:
-    Magic: str = None
-    Images: List["TexImage"] = field(default_factory=list)
-    ImageContainerVersion: enums.TexImageContainerVersion = None
-    ImageFormat: enums.FreeImageFormat = enums.FreeImageFormat.FIF_UNKNOWN
+    magic: str = None
+    images: List["TexImage"] = field(default_factory=list)
+    imageContainerVersion: enums.TexImageContainerVersion = None
+    imageFormat: enums.FreeImageFormat = enums.FreeImageFormat.FIF_UNKNOWN
 
     @property
     def firstImage(self) -> "TexImage":
-        return self.Images[0]
+        return self.images[0]
 
 
 @dataclass
 class TexFrameInfo:
-    ImageId: int
-    FrameTime: float
-    X: float
-    Y: float
-    Width: float
-    WidthY: float
-    HeightX: float
-    Height: float
+    imageId: int
+    frameTime: float
+    x: float
+    y: float
+    width: float
+    widthY: float
+    heightX: float
+    height: float
 
 
 @dataclass
 class TexFrameInfoContainer:
     _fd: Union[BinaryIO, BytesIO]
-    Magic: str = None
-    Frames: List[TexFrameInfo] = field(default_factory=list)
-    GifWidth: int = 0
-    GifHeight: int = 0
+    magic: str = None
+    frames: List[TexFrameInfo] = field(default_factory=list)
+    gifWidth: int = 0
+    gifHeight: int = 0
 
     def read(self):
-        self.Magic = read_n_bytes(self._fd, "<8sx").decode()
-        frameConut = read_n_bytes(self._fd)
+        self.magic = readNBytes(self._fd, "<8sx").decode()
+        frameCount = readNBytes(self._fd)
 
-        match self.Magic:
+        match self.magic:
             case "TEXS0001":
-                for i in range(frameConut):
-                    data = read_n_bytes(self._fd, "<ifiiiiii")
-                    self.Frames.append(TexFrameInfo(*data))
+                for i in range(frameCount):
+                    data = readNBytes(self._fd, "<ifiiiiii")
+                    self.frames.append(TexFrameInfo(*data))
             case "TEXS0002":
                 pass
             case "TEXS0003":
-                self.GifWidth, self.GifHeight = read_n_bytes(self._fd, "<ii")
-                for i in range(frameConut):
-                    data = read_n_bytes(self._fd, "<ifffffff")
-                    self.Frames.append(TexFrameInfo(*data))
+                self.gifWidth, self.gifHeight = readNBytes(self._fd, "<ii")
+                for i in range(frameCount):
+                    data = readNBytes(self._fd, "<ifffffff")
+                    self.frames.append(TexFrameInfo(*data))
             case _:
                 raise exceptions.UnknownMagicError()
 
-        if self.GifWidth == 0 or self.GifHeight == 0:
-            self.GifWidth = int(self.Frames[0].Width)
-            self.GifHeight = int(self.Frames[0].Height)
+        if self.gifWidth == 0 or self.gifHeight == 0:
+            self.gifWidth = int(self.firstFrame.width)
+            self.gifHeight = int(self.firstFrame.height)
+
+    @property
+    def firstFrame(self):
+        return self.frames[0]
 
 
 class Texture:
@@ -101,7 +105,7 @@ class Texture:
             self.frameInfoContainer.read()
 
     def _read_header(self):
-        data = read_n_bytes(self._fd, self.HEADER_STRUCT)
+        data = readNBytes(self._fd, self.HEADER_STRUCT)
 
         self._magic1 = data[0].decode()
         self._magic2 = data[1].decode()
@@ -115,40 +119,40 @@ class Texture:
         self.imageHeight = data[7]
         self.unkInt0 = data[8]
 
-        if not is_valid_format(self.format):
+        if not isValidFormat(self.format):
             raise InvalidTextureFormat()
 
     def _read_image_container(self):
         self.imagesContainer = TexImageContainer(
-            Magic=read_n_bytes(self._fd, "<8sx").decode()
+            magic=readNBytes(self._fd, "<8sx").decode()
         )
-        image_count = read_n_bytes(self._fd)
+        image_count = readNBytes(self._fd)
 
-        match self.imagesContainer.Magic:
+        match self.imagesContainer.magic:
             case "TEXB0001" | "TEXB0002":
                 pass
             case "TEXB0003":
                 try:
-                    self.imagesContainer.ImageFormat = enums.FreeImageFormat(
-                        read_n_bytes(self._fd)
+                    self.imagesContainer.imageFormat = enums.FreeImageFormat(
+                        readNBytes(self._fd)
                     )
                 except ValueError:
-                    self.imagesContainer.ImageFormat = enums.FreeImageFormat.FIF_UNKNOWN
+                    self.imagesContainer.imageFormat = enums.FreeImageFormat.FIF_UNKNOWN
             case _:
-                raise exceptions.UnknownMagicError(self.imagesContainer.Magic)
+                raise exceptions.UnknownMagicError(self.imagesContainer.magic)
 
-        self.imagesContainer.ImageContainerVersion = enums.TexImageContainerVersion(
-            int(self.imagesContainer.Magic[4:])
+        self.imagesContainer.imageContainerVersion = enums.TexImageContainerVersion(
+            int(self.imagesContainer.magic[4:])
         )
 
-        if not is_valid_format(self.imagesContainer.ImageFormat):
+        if not isValidFormat(self.imagesContainer.imageFormat):
             raise InvalidTextureFormat()
 
         reader = TexImage(self._fd, self.imagesContainer, self.format)
         reader.read()
 
         for i in range(image_count):
-            self.imagesContainer.Images.append(reader)
+            self.imagesContainer.images.append(reader)
 
     @property
     def is_gif(self) -> bool:
@@ -172,10 +176,10 @@ class TexImage:
         return self.mipmaps[0]
 
     def read(self):
-        mipmapCount = read_n_bytes(self._fd)
-        read_func = self.pickMipmapReader(self._container.ImageContainerVersion)
+        mipmapCount = readNBytes(self._fd)
+        read_func = self.pickMipmapReader(self._container.imageContainerVersion)
         mipmapFormat = extensions.getFormatForTex(
-            self._container.ImageFormat, self._texFormat
+            self._container.imageFormat, self._texFormat
         )
         for i in range(mipmapCount):
             mipmap = read_func(self._fd)
@@ -187,8 +191,8 @@ class TexImage:
     @staticmethod
     def readMipmapV1(fd: Union[BinaryIO, BytesIO]):
         return TexMipmap(
-            width=read_n_bytes(fd),
-            height=read_n_bytes(fd),
+            width=readNBytes(fd),
+            height=readNBytes(fd),
             data=TexImage.readBytes(fd),
             isLZ4Compressed=False,
         )
@@ -196,16 +200,16 @@ class TexImage:
     @staticmethod
     def readMipmapV2AndV3(fd: Union[BinaryIO, BytesIO]):
         return TexMipmap(
-            width=read_n_bytes(fd),
-            height=read_n_bytes(fd),
-            isLZ4Compressed=read_n_bytes(fd) == 1,
-            decompressedBytesCount=read_n_bytes(fd),
+            width=readNBytes(fd),
+            height=readNBytes(fd),
+            isLZ4Compressed=readNBytes(fd) == 1,
+            decompressedBytesCount=readNBytes(fd),
             data=TexImage.readBytes(fd),
         )
 
     @staticmethod
     def readBytes(fd: Union[BinaryIO, BytesIO]):
-        byteCount = read_n_bytes(fd)
+        byteCount = readNBytes(fd)
         bytesRead = fd.read(byteCount)
         if len(bytesRead) != byteCount:
             raise ValueError("Failed to read bytes from stream while reading mipmap")

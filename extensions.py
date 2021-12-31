@@ -5,7 +5,7 @@ import struct
 from enums import FreeImageFormat, TexFormat, MipmapFormat
 
 
-def is_valid_format(enum: Union[TexFormat, FreeImageFormat]):
+def isValidFormat(enum: Union[TexFormat, FreeImageFormat]):
     if isinstance(enum, FreeImageFormat):
         return -1 <= enum.value <= 34
     else:
@@ -23,7 +23,7 @@ def is_valid_format(enum: Union[TexFormat, FreeImageFormat]):
                 return False
 
 
-def read_n_bytes(fd: Union[BinaryIO, BytesIO], fmt: str = "<i"):
+def readNBytes(fd: Union[BinaryIO, BytesIO], fmt: str = "<i"):
     size = struct.calcsize(fmt)
     data = struct.unpack(fmt, fd.read(size))
     if len(data) == 1:
