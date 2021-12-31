@@ -3,12 +3,10 @@ from dataclasses import dataclass, field
 from io import BytesIO
 from typing import BinaryIO, List, Union
 
-import lz4.block
-
+from decompress import decompressMipmap
 import enums
 import exceptions
 import extensions
-from DXT import decompressImage
 from exceptions import InvalidTextureFormat
 from extensions import is_valid_format, read_n_bytes
 
@@ -193,47 +191,6 @@ class TexReader:
         return container
 
 
-class TexMipmapDecompressor:
-    def __init__(self, mipmap: TexMipmap):
-        self.mipmap = mipmap
-
-    def decompressMipmap(self):
-        if self.mipmap.isLZ4Compressed:
-            self.mipmap.data = self.lz4decompress()
-            self.mipmap.isLZ4Compressed = False
-
-        if self.mipmap.format.isImage(self.mipmap.format):
-            return
-
-        match self.mipmap.format:
-            case enums.MipmapFormat.CompressedDXT5:
-                self.mipmap.data = decompressImage(
-                    self.mipmap.width, self.mipmap.height,
-                    self.mipmap.data, enums.DXTFlags.DXT5
-                )
-                self.mipmap.format = enums.MipmapFormat.RGBA8888
-            case enums.MipmapFormat.CompressedDXT3:
-                self.mipmap.data = decompressImage(
-                    self.mipmap.width, self.mipmap.height,
-                    self.mipmap.data, enums.DXTFlags.DXT3
-                )
-                self.mipmap.format = enums.MipmapFormat.RGBA8888
-            case enums.MipmapFormat.CompressedDXT1:
-                self.mipmap.data = decompressImage(
-                    self.mipmap.width, self.mipmap.height,
-                    self.mipmap.data, enums.DXTFlags.DXT1
-                )
-                self.mipmap.format = enums.MipmapFormat.RGBA8888
-
-    def lz4decompress(self) -> bytes:
-        decompressed = lz4.block.decompress(
-            self.mipmap.data, uncompressed_size=self.mipmap.decompressedBytesCount
-        )
-        if len(decompressed) != self.mipmap.decompressedBytesCount:
-            raise exceptions.DecompressionError()
-        return decompressed
-
-
 @dataclass
 class TexImage:
     _fd: Union[BinaryIO, BytesIO]
@@ -257,8 +214,7 @@ class TexImage:
             mipmap = read_func(self._fd)
             mipmap.format = mipmapFormat
             if self.decompressMipmapBytes:  # redundant condition
-                _decompressor = TexMipmapDecompressor(mipmap)
-                _decompressor.decompressMipmap()
+                decompressMipmap(mipmap)
             self.mipmaps.append(mipmap)
 
     @staticmethod
