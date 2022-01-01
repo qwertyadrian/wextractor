@@ -1,7 +1,11 @@
 import io
 from dataclasses import dataclass, field
 from io import BytesIO
+from pathlib import Path
 from typing import BinaryIO, List, Union
+from math import atan2, copysign, degrees, pi
+
+from PIL import Image
 
 import enums
 from decompress import decompressMipmap
@@ -151,6 +155,67 @@ class Texture:
 
         for i in range(image_count):
             self.imagesContainer.images.append(reader)
+
+    def save(self, path: Union[Path, str] = None):
+        path = Path(path)
+
+        if self.isGif:
+            frames = list()
+            for frame in self.frameInfoContainer.frames:
+                width = frame.width if frame.width != 0 else frame.heightX
+                height = frame.height if frame.height != 0 else frame.widthY
+                x = min(frame.x, frame.x + width)
+                y = min(frame.y, frame.y + height)
+
+                rotationAngle = -(
+                    degrees(atan2(copysign(1, height), copysign(1, width)) - pi / 4)
+                )
+
+                image = self._createImage(self.imagesContainer.firstImage.firstMipmap)
+
+                frames.insert(
+                    frame.imageId,
+                    image.crop(
+                        (int(x), int(y), int(abs(width) + x), int(abs(height) + y))
+                    ).rotate(rotationAngle),
+                )
+            # ignoring last black frame
+            frames[0].save(
+                path,
+                save_all=True,
+                append_images=frames[1:-1],
+                duration=self.frameInfoContainer.firstFrame.frameTime,
+                loop=0,
+            )
+            return
+
+        if self.imagesContainer.imageFormat == enums.FreeImageFormat.FIF_UNKNOWN:
+            if (
+                self.imagesContainer.firstImage.firstMipmap.format
+                == enums.MipmapFormat.RGBA8888
+            ):
+                self._createImage(self.imagesContainer.firstImage.firstMipmap).crop(
+                    (0, 0, self.imageWidth, self.imageHeight)
+                ).save(path)
+            elif self.imagesContainer.firstImage.firstMipmap.format in (
+                enums.MipmapFormat.R8,
+                enums.MipmapFormat.RG88,
+            ):
+                self._createImage(
+                    self.imagesContainer.firstImage.firstMipmap, "L"
+                ).crop((0, 0, self.imageWidth, self.imageHeight)).save(path)
+            else:
+                raise InvalidTextureFormat("Unable to save compressed data")
+        else:
+            Image.open(
+                self.imagesContainer.firstImage.firstMipmap.getBytesStream()
+            ).save(path)
+
+    @staticmethod
+    def _createImage(mipmap: TexMipmap, mode: str = "RGBA") -> Image:
+        return Image.frombuffer(
+            mode, (mipmap.width, mipmap.height), mipmap.data, "raw", mode, 0, 1
+        )
 
     @property
     def isGif(self) -> bool:
