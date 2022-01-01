@@ -1,5 +1,4 @@
 import io
-from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, List, Union
@@ -12,33 +11,7 @@ class File:
     size: int
 
 
-class PKGBase(metaclass=ABCMeta):
-    @abstractmethod
-    def _prepare_file(self):
-        pass
-
-    @abstractmethod
-    def _read_str(self):
-        pass
-
-    @abstractmethod
-    def _read_header(self):
-        pass
-
-    @abstractmethod
-    def _read_files(self):
-        pass
-
-    @abstractmethod
-    def get_file(self, file: File):
-        pass
-
-    @abstractmethod
-    def save_file(self, file: File):
-        pass
-
-
-class PKGV0001(PKGBase):
+class Package:
     def __init__(self, filename: Union[str, Path]):
         self.filename = filename
         self.filecount: int = 0
@@ -56,9 +29,6 @@ class PKGV0001(PKGBase):
     def _read_header(self):
         version = self._read_str()
         self.filecount = int.from_bytes(self._fd.read(4), "little", signed=False)
-        # if version != self.__class__.__name__:
-        #     self._fd.close()
-        #     raise ValueError("File not compatible. File will be closed.")
 
     def _read_str(self) -> str:
         size = int.from_bytes(self._fd.read(4), "little", signed=False)

@@ -1,15 +1,15 @@
-import io
 from dataclasses import dataclass, field
 from io import BytesIO
+from math import atan2, copysign, degrees, pi
 from pathlib import Path
 from typing import BinaryIO, List, Union
-from math import atan2, copysign, degrees, pi
 
 from PIL import Image
 
 import enums
 from decompress import decompressMipmap
-from exceptions import InvalidContainerVersion, InvalidTextureFormat, UnknownMagicError
+from exceptions import (InvalidContainerVersion, InvalidTextureFormat,
+                        UnknownMagicError)
 from extensions import getFormatForTex, isValidFormat, readNBytes
 
 
@@ -23,7 +23,7 @@ class TexMipmap:
     format: enums.MipmapFormat = None
 
     def getBytesStream(self) -> BytesIO:
-        return io.BytesIO(self.data)
+        return BytesIO(self.data)
 
 
 @dataclass
@@ -95,7 +95,7 @@ class Texture:
         if isinstance(file, str):
             self._fd: BinaryIO = open(file, "r+b")
         elif isinstance(file, bytes):
-            self._fd: BytesIO = io.BytesIO(file)
+            self._fd: BytesIO = BytesIO(file)
         else:
             self._fd = file
         self._read_header()
