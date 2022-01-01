@@ -1,8 +1,8 @@
-from io import BytesIO
-from typing import Union, BinaryIO
 import struct
+from io import BytesIO
+from typing import BinaryIO, Union
 
-from enums import FreeImageFormat, TexFormat, MipmapFormat
+from enums import FreeImageFormat, MipmapFormat, TexFormat
 
 
 def isValidFormat(enum: Union[TexFormat, FreeImageFormat]):

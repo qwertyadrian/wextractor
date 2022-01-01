@@ -1,4 +1,4 @@
-from enum import Enum, auto, IntFlag
+from enum import Enum, IntFlag, auto
 
 
 class TexFormat(Enum):

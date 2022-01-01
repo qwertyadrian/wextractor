@@ -3,12 +3,10 @@ from dataclasses import dataclass, field
 from io import BytesIO
 from typing import BinaryIO, List, Union
 
-from decompress import decompressMipmap
 import enums
-import exceptions
-import extensions
-from exceptions import InvalidTextureFormat
-from extensions import isValidFormat, readNBytes
+from decompress import decompressMipmap
+from exceptions import InvalidContainerVersion, InvalidTextureFormat, UnknownMagicError
+from extensions import getFormatForTex, isValidFormat, readNBytes
 
 
 @dataclass
@@ -73,7 +71,7 @@ class TexFrameInfoContainer:
                     data = readNBytes(self._fd, "<ifffffff")
                     self.frames.append(TexFrameInfo(*data))
             case _:
-                raise exceptions.UnknownMagicError()
+                raise UnknownMagicError()
 
         if self.gifWidth == 0 or self.gifHeight == 0:
             self.gifWidth = int(self.firstFrame.width)
@@ -100,7 +98,7 @@ class Texture:
         self._read_image_container()
 
         self.frameInfoContainer = None
-        if self.is_gif:
+        if self.isGif:
             self.frameInfoContainer = TexFrameInfoContainer(self._fd)
             self.frameInfoContainer.read()
 
@@ -110,7 +108,7 @@ class Texture:
         self._magic1 = data[0].decode()
         self._magic2 = data[1].decode()
         if self._magic1 != "TEXV0005" or self._magic2 != "TEXI0001":
-            raise ValueError("Incorrect magic value")
+            raise UnknownMagicError("Incorrect magic value")
         self.format = enums.TexFormat(data[2])
         self.flags = enums.TexFlags(data[3])
         self.textureWidth = data[4]
@@ -139,7 +137,7 @@ class Texture:
                 except ValueError:
                     self.imagesContainer.imageFormat = enums.FreeImageFormat.FIF_UNKNOWN
             case _:
-                raise exceptions.UnknownMagicError(self.imagesContainer.magic)
+                raise UnknownMagicError(self.imagesContainer.magic)
 
         self.imagesContainer.imageContainerVersion = enums.TexImageContainerVersion(
             int(self.imagesContainer.magic[4:])
@@ -155,11 +153,11 @@ class Texture:
             self.imagesContainer.images.append(reader)
 
     @property
-    def is_gif(self) -> bool:
-        return self.has_flag(enums.TexFlags.IsGif)
+    def isGif(self) -> bool:
+        return self.hasFlag(enums.TexFlags.IsGif)
 
-    def has_flag(self, flag: enums.TexFlags) -> bool:
-        return (self.flags.value & flag.value) == flag.value
+    def hasFlag(self, flag: enums.TexFlags) -> bool:
+        return (self.flags & flag) == flag
 
 
 @dataclass
@@ -178,9 +176,7 @@ class TexImage:
     def read(self):
         mipmapCount = readNBytes(self._fd)
         read_func = self.pickMipmapReader(self._container.imageContainerVersion)
-        mipmapFormat = extensions.getFormatForTex(
-            self._container.imageFormat, self._texFormat
-        )
+        mipmapFormat = getFormatForTex(self._container.imageFormat, self._texFormat)
         for i in range(mipmapCount):
             mipmap = read_func(self._fd)
             mipmap.format = mipmapFormat
@@ -226,4 +222,4 @@ class TexImage:
             ):
                 return TexImage.readMipmapV2AndV3
             case _:
-                raise exceptions.InvalidContainerVersion
+                raise InvalidContainerVersion()

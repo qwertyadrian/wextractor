@@ -7,14 +7,22 @@ https://github.com/notscuffed/repkg/blob/master/RePKG.Application/Texture/Helper
 from enums import DXTFlags
 
 
-def unpack565(block: bytes, blockIndex: int, packedOffset: int, colour: bytearray, colourOffset: int):
+def unpack565(
+    block: bytes,
+    blockIndex: int,
+    packedOffset: int,
+    colour: bytearray,
+    colourOffset: int,
+):
     # Build packed value
-    value = block[blockIndex + packedOffset] | (block[blockIndex + 1 + packedOffset] << 8)
+    value = block[blockIndex + packedOffset] | (
+        block[blockIndex + 1 + packedOffset] << 8
+    )
 
     # get components in the stored range
     red = (value >> 11) & 0x1F
     green = (value >> 5) & 0x3F
-    blue = (value & 0x1F)
+    blue = value & 0x1F
 
     # Scale up to 8 Bit
     colour[0 + colourOffset] = (red << 3) | (red >> 2)
@@ -137,7 +145,7 @@ def decompress(rgba: bytearray, block: bytes, blockIndex: int, flags: DXTFlags):
         decompressAlphaDxt3(rgba, block, blockIndex)
     elif (flags & DXTFlags.DXT5) != 0:
         decompressAlphaDxt5(rgba, block, blockIndex)
-    
+
 
 def decompressImage(width: int, height: int, data: bytes, flags: DXTFlags):
     rgba = bytearray(width * height * 4)
@@ -174,6 +182,5 @@ def decompressImage(width: int, height: int, data: bytes, flags: DXTFlags):
                         targetRGBA_pos += 4
 
             sourceBlock_pos += bytesPerBlock
-            
-    return rgba
 
+    return rgba
