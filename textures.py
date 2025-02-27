@@ -150,10 +150,9 @@ class Texture:
         if not isValidFormat(self.imagesContainer.imageFormat):
             raise InvalidTextureFormat()
 
-        reader = TexImage(self._fd, self.imagesContainer, self.format)
-        reader.read()
-
         for i in range(image_count):
+            reader = TexImage(self._fd, self.imagesContainer, self.format)
+            reader.read()
             self.imagesContainer.images.append(reader)
 
     def save(self, path: Union[Path, str] = None):
