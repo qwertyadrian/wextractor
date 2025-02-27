@@ -1,5 +1,5 @@
 import io
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import BinaryIO, List, Union
 
@@ -9,6 +9,7 @@ class File:
     name: str
     offset: int
     size: int
+    data: bytes = field(repr=False, init=False)
 
 
 class Package:
@@ -47,16 +48,15 @@ class Package:
             )
             self._ds_ptr = self._fd.tell()  # data structure pointer
 
-    def get_file(self, file: File) -> bytes:
-        self._fd.seek(self._ds_ptr, io.SEEK_SET)
-        self._fd.seek(file.offset, io.SEEK_CUR)
-        return self._fd.read(file.size)
+        for file in self.files:
+            self._fd.seek(self._ds_ptr + file.offset, io.SEEK_SET)
+            file.data = self._fd.read(file.size)
 
-    def save_file(self, file: File):
-        content = self.get_file(file)
+    @staticmethod
+    def save_file(file: File):
         path = Path(file.name)
         if path.match("*/*.*"):
             path.parent.mkdir(parents=True, exist_ok=True)
 
         with path.open("wb"):
-            path.write_bytes(content)
+            path.write_bytes(file.data)
