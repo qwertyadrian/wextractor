@@ -5,7 +5,7 @@ from typing import BinaryIO, Union
 from .enums import FreeImageFormat, MipmapFormat, TexFormat
 
 
-def isValidFormat(enum: Union[TexFormat, FreeImageFormat]):
+def is_valid_format(enum: Union[TexFormat, FreeImageFormat]):
     if isinstance(enum, FreeImageFormat):
         return -1 <= enum.value <= 34
     else:
@@ -23,7 +23,7 @@ def isValidFormat(enum: Union[TexFormat, FreeImageFormat]):
                 return False
 
 
-def readNBytes(fd: Union[BinaryIO, BytesIO], fmt: str = "<i"):
+def read_n_bytes(fd: Union[BinaryIO, BytesIO], fmt: str = "<i"):
     size = struct.calcsize(fmt)
     data = struct.unpack(fmt, fd.read(size))
     if len(data) == 1:
@@ -32,11 +32,11 @@ def readNBytes(fd: Union[BinaryIO, BytesIO], fmt: str = "<i"):
         return data
 
 
-def getFormatForTex(imageFormat: FreeImageFormat, texFormat: TexFormat) -> MipmapFormat:
-    if imageFormat != FreeImageFormat.FIF_UNKNOWN:
-        return freeImageFormatToMipmapFormat(imageFormat)
+def get_format_for_tex(image_format: FreeImageFormat, tex_format: TexFormat) -> MipmapFormat:
+    if image_format != FreeImageFormat.FIF_UNKNOWN:
+        return free_image_format_to_mipmap_format(image_format)
 
-    match texFormat:
+    match tex_format:
         case TexFormat.RGBA8888:
             return MipmapFormat.RGBA8888
         case TexFormat.DXT5:
@@ -53,10 +53,10 @@ def getFormatForTex(imageFormat: FreeImageFormat, texFormat: TexFormat) -> Mipma
             raise Exception("Argument out of range")
 
 
-def freeImageFormatToMipmapFormat(freeImageFormat) -> MipmapFormat:
-    match freeImageFormat:
+def free_image_format_to_mipmap_format(free_image_format) -> MipmapFormat:
+    match free_image_format:
         case FreeImageFormat.FIF_UNKNOWN:
-            raise Exception(f"Can't convert {freeImageFormat} to MipmapFormat")
+            raise Exception(f"Can't convert {free_image_format} to MipmapFormat")
         case FreeImageFormat.FIF_BMP:
             return MipmapFormat.ImageBMP
 
@@ -166,8 +166,8 @@ def freeImageFormatToMipmapFormat(freeImageFormat) -> MipmapFormat:
             raise Exception("Argument out of range")
 
 
-def getFileExtension(imageFormat: MipmapFormat) -> str:
-    match imageFormat:
+def get_file_extension(image_format: MipmapFormat) -> str:
+    match image_format:
         case MipmapFormat.ImageBMP:
             return "bmp"
         case MipmapFormat.ImageICO:
