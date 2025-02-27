@@ -192,6 +192,14 @@ class Texture:
             )
             return
 
+        if self.is_video_texture:
+            mp4magic = self.images_container.first_image.first_mipmap.data[4:12]
+            if mp4magic not in (b"ftypisom", b"ftypmsnv", b"ftypmp42"):
+                raise UnknownMagicError(f"Invalid mp4 magic {mp4magic}")
+            with open(path, "wb") as out:
+                out.write(self.images_container.first_image.first_mipmap.data)
+                return
+
         if self.images_container.format == enums.FreeImageFormat.FIF_UNKNOWN:
             if (
                 self.images_container.first_image.first_mipmap.format
