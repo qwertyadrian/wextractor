@@ -2,7 +2,7 @@ import struct
 from io import BytesIO
 from typing import BinaryIO, Union
 
-from enums import FreeImageFormat, MipmapFormat, TexFormat
+from .enums import FreeImageFormat, MipmapFormat, TexFormat
 
 
 def isValidFormat(enum: Union[TexFormat, FreeImageFormat]):
@@ -234,5 +234,7 @@ def getFileExtension(imageFormat: MipmapFormat) -> str:
             return "pict"
         case MipmapFormat.ImageRAW:
             return "raw"
+        case MipmapFormat.VideoMP4:
+            return "mp4"
         case _:
             return "png"

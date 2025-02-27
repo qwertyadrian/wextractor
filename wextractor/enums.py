@@ -18,7 +18,7 @@ class TexFlags(IntFlag):
     # Placeholders
     Unk3 = 8
     Unk4 = 16
-    Unk5 = 32
+    IsVideoTexture = 32
     Unk6 = 64
     Unk7 = 128
 
@@ -117,6 +117,8 @@ class MipmapFormat(Enum):
     CompressedDXT3 = auto()
     # Raw pixels compressed using DXT1 -> decompressing in RGBA8888
     CompressedDXT1 = auto()
+    # MP4 Video
+    VideoMP4 = auto()
     # Windows or OS/2 Bitmap File (*.BMP)
     # Keep '= 1000' because MipmapFormatExtensions.IsImage uses this to check if format is an image format
     ImageBMP = 1000

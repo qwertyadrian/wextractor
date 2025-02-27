@@ -1,8 +1,8 @@
 import lz4.block
 
-from DXT import decompressImage
-from enums import DXTFlags, MipmapFormat
-from exceptions import DecompressionError
+from .DXT import decompressImage
+from .enums import DXTFlags, MipmapFormat
+from .exceptions import DecompressionError
 
 
 def lz4decompress(data: bytes, decompressedBytesCount: int):

@@ -6,11 +6,11 @@ from typing import BinaryIO, List, Union
 
 from PIL import Image
 
-import enums
-from decompress import decompressMipmap
-from exceptions import (InvalidContainerVersion, InvalidTextureFormat,
+from . import enums
+from .decompress import decompressMipmap
+from .exceptions import (InvalidContainerVersion, InvalidTextureFormat,
                         UnknownMagicError)
-from extensions import getFormatForTex, isValidFormat, readNBytes
+from .extensions import getFormatForTex, isValidFormat, readNBytes
 
 
 @dataclass
@@ -197,8 +197,8 @@ class Texture:
                     (0, 0, self.imageWidth, self.imageHeight)
                 ).save(path)
             elif self.imagesContainer.firstImage.firstMipmap.format in (
-                enums.MipmapFormat.R8,
-                enums.MipmapFormat.RG88,
+                    enums.MipmapFormat.R8,
+                    enums.MipmapFormat.RG88,
             ):
                 self._createImage(
                     self.imagesContainer.firstImage.firstMipmap, "L"
@@ -219,6 +219,10 @@ class Texture:
     @property
     def isGif(self) -> bool:
         return self.hasFlag(enums.TexFlags.IsGif)
+
+    @property
+    def isVideoTexture(self) -> bool:
+        return self.hasFlag(enums.TexFlags.IsVideoTexture)
 
     def hasFlag(self, flag: enums.TexFlags) -> bool:
         return (self.flags & flag) == flag

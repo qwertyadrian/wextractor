@@ -4,7 +4,7 @@ S3TC DXT1/DXT3/DXT5 Texture Decompression
 Original C# code:
 https://github.com/notscuffed/repkg/blob/master/RePKG.Application/Texture/Helpers/DXT.cs
 """
-from enums import DXTFlags
+from .enums import DXTFlags
 
 
 def unpack565(
