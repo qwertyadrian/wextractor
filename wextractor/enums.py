@@ -105,16 +105,18 @@ class MipmapFormat(Enum):
         return mipmap_format.value >= self.ImageBMP.value
 
     def is_raw(self):
-        return self.RGBA8888.value <= self.value <= self.RG88.value
+        return self.RGBA8888.value <= self.value <= self.RGB888.value
 
     # Invalid format
     Invalid = 0
     # Raw pixels (4 bytes per pixel) (RGBA8888)
-    RGBA8888 = 1
+    RGBA8888 = auto()
     # Raw pixels (1 byte per pixel) (R8)
-    R8 = 2
+    R8 = auto()
     # Raw pixels (2 bytes per pixel) (RG88)
-    RG88 = 3
+    RG88 = auto()
+    # Raw pixels (3 bytes per pixel) (RGB888)
+    RGB888 = auto()
     # Raw pixels compressed using DXT5 -> decompressing in RGBA8888
     CompressedDXT5 = auto()
     # Raw pixels compressed using DXT3 -> decompressing in RGBA8888

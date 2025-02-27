@@ -218,6 +218,10 @@ class Texture:
                 self._create_image(self.images_container.first_image.first_mipmap).crop(
                     (0, 0, self.imageWidth, self.imageHeight)
                 ).save(path)
+            elif self.images_container.first_image.first_mipmap.format == enums.MipmapFormat.RGB888:
+                self._create_image(
+                    self.images_container.first_image.first_mipmap, "RGB"
+                ).crop((0, 0, self.imageWidth, self.imageHeight)).save(path)
             elif self.images_container.first_image.first_mipmap.format in (
                 enums.MipmapFormat.R8,
                 enums.MipmapFormat.RG88,

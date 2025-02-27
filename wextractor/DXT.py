@@ -1,179 +1,286 @@
-"""
-S3TC DXT1/DXT3/DXT5 Texture Decompression
-
-Original C# code:
-https://github.com/notscuffed/repkg/blob/master/RePKG.Application/Texture/Helpers/DXT.cs
-"""
 from .enums import DXTFlags
+import numpy as np
 
 
-def unpack565(
-    block: bytes,
-    block_index: int,
-    packed_offset: int,
-    colour: bytearray,
-    colour_offset: int,
-):
-    # Build packed value
-    value = block[block_index + packed_offset] | (
-            block[block_index + 1 + packed_offset] << 8
-    )
+def decompress_image(width: int, height: int, data: bytes, format_type: DXTFlags):
+    """
+    Decompress headerless DXT/S3TC compressed texture data
 
-    # get components in the stored range
-    red = (value >> 11) & 0x1F
-    green = (value >> 5) & 0x3F
-    blue = value & 0x1F
+    Args:
+        width: Width of the texture
+        height: Height of the texture
+        data: Raw compressed bytes or bytearray
+        format_type: String indicating format - "DXT1", "DXT3", or "DXT5"
 
-    # Scale up to 8 Bit
-    colour[0 + colour_offset] = (red << 3) | (red >> 2)
-    colour[1 + colour_offset] = (green << 2) | (green >> 4)
-    colour[2 + colour_offset] = (blue << 3) | (blue >> 2)
-    colour[3 + colour_offset] = 255
-
-    return value
-
-
-def decompress_color(rgba: bytearray, block: bytes, block_index: int, is_dxt1: bool):
-    # Unpack Endpoints
-    codes = bytearray(16)
-    a = unpack565(block, block_index, 0, codes, 0)
-    b = unpack565(block, block_index, 2, codes, 4)
-
-    # generate Midpoints
-    for i in range(3):
-        c = codes[i]
-        d = codes[4 + i]
-
-        if is_dxt1 and a <= b:
-            codes[8 + i] = (c + d) // 2
-            codes[12 + i] = 0
-        else:
-            codes[8 + i] = (2 * c + d) // 3
-            codes[12 + i] = (c + 2 * d) // 3
-
-        # Fill in alpha for intermediate values
-        codes[8 + 3] = 255
-        codes[12 + 3] = 0 if (is_dxt1 and a <= b) else 255
-
-        # unpack the indices
-        indices = bytearray(16)
-        for i in range(3):
-            packed = block[block_index + 4 + i]
-            indices[0 + i * 4] = packed & 0x3
-            indices[1 + i * 4] = (packed >> 2) & 0x3
-            indices[2 + i * 4] = (packed >> 4) & 0x3
-            indices[3 + i * 4] = (packed >> 6) & 0x3
-
-        # store out the colours
-        for i in range(16):
-            offset = 4 * indices[i]
-            rgba[4 * i:4 * i + 4] = codes[offset:offset + 4]
-
-
-def decompress_alpha_dxt3(rgba: bytearray, block: bytes, block_index: int):
-    # Unpack the alpha values pairwise
-    for i in range(8):
-        # Quantise down to 4 bits
-        quant = block[block_index + i]
-
-        lo = quant & 0x0F
-        hi = quant & 0xF0
-
-        # Convert back up to bytes
-        rgba[8 * i + 3] = lo | (lo << 4)
-        rgba[8 * i + 7] = hi | (hi >> 4)
-
-
-def decompress_alpha_dxt5(rgba: bytearray, block: bytes, block_index: int):
-    # Get the two alpha values
-    alpha0 = block[block_index + 0]
-    alpha1 = block[block_index + 1]
-
-    # compare the values to build the codebook
-    codes = bytearray(8)
-    codes[0] = alpha0
-    codes[1] = alpha1
-    if alpha0 <= alpha1:
-        # Use 5-Alpha Codebook
-        for i in range(1, 5):
-            codes[1 + i] = ((5 - i) * alpha0 + i * alpha1) // 5
-            codes[6] = 0
-            codes[7] = 255
+    Returns:
+        PIL Image object containing the decompressed texture
+    """
+    # Calculate block size and bytes per block based on format
+    if format_type == DXTFlags.DXT1:
+        block_size = 8  # 8 bytes per 4x4 pixel block
+        has_alpha = False
+    elif format_type == DXTFlags.DXT3 or format_type == DXTFlags.DXT5:
+        block_size = 16  # 16 bytes per 4x4 pixel block
+        has_alpha = True
     else:
-        # Use 7-Alpha Codebook
-        for i in range(1, 7):
-            codes[i + 1] = ((7 - i) * alpha0 + i * alpha1) // 7
+        raise ValueError(f"Unsupported format: {format_type}")
 
-    # decode indices
-    indices = bytearray(16)
-    block_src_pos = 2
-    indices_pos = 0
-    for i in range(2):
-        # grab 3 bytes
-        value = 0
-        for j in range(3):
-            value |= block[block_index + block_src_pos] << (8 * j)
-            block_src_pos += 1
+    # Calculate number of blocks and expected data size
+    blocks_width = (width + 3) // 4  # Integer division, rounding up
+    blocks_height = (height + 3) // 4
+    expected_size = blocks_width * blocks_height * block_size
 
-        # unpack 8 3-bit values from it
-        for j in range(8):
-            index = (value >> 3 * j) & 0x07
-            indices[indices_pos] = index
-            indices_pos += 1
+    if len(data) < expected_size:
+        raise ValueError(f"Data size mismatch: expected at least {expected_size} bytes, got {len(data)}")
 
-    # write out the indexed codebook values
+    # Prepare array for decompressed pixels
+    channels = 4 if has_alpha else 3
+    pixels = np.zeros((height, width, channels), dtype=np.uint8)
+
+    # Process each 4x4 block
+    block_idx = 0
+    for by in range(blocks_height):
+        for bx in range(blocks_width):
+            offset = block_idx * block_size
+            block_data = data[offset:offset + block_size]
+
+            # Get the coordinates for this block
+            x = bx * 4
+            y = by * 4
+
+            # Decompress this block and place in the pixel array
+            match format_type:
+                case DXTFlags.DXT1:
+                    _decompress_dxt1_block(block_data, pixels, x, y, width, height)
+                case DXTFlags.DXT3:
+                    _decompress_dxt3_block(block_data, pixels, x, y, width, height)
+                case DXTFlags.DXT5:
+                    _decompress_dxt5_block(block_data, pixels, x, y, width, height)
+
+            block_idx += 1
+
+    if has_alpha:
+        return pixels.tobytes()
+    else:
+        # If DXT1 with no alpha, convert to RGB
+        return pixels[:, :, :3].tobytes()
+
+
+def _decompress_dxt1_block(block_data, pixels, x, y, width, height):
+    """
+    Decompress a DXT1 block (8 bytes total)
+
+    Format:
+    - 2 bytes: color0 (RGB565)
+    - 2 bytes: color1 (RGB565)
+    - 4 bytes: color indices (2 bits per pixel)
+    """
+    # Extract the two color values (stored as RGB565)
+    color0 = block_data[0] | (block_data[1] << 8)
+    color1 = block_data[2] | (block_data[3] << 8)
+
+    # Convert RGB565 to RGB888
+    r0 = ((color0 >> 11) & 31) * 255 // 31
+    g0 = ((color0 >> 5) & 63) * 255 // 63
+    b0 = (color0 & 31) * 255 // 31
+
+    r1 = ((color1 >> 11) & 31) * 255 // 31
+    g1 = ((color1 >> 5) & 63) * 255 // 63
+    b1 = (color1 & 31) * 255 // 31
+
+    # Create the color palette based on the two colors
+    palette = [
+        (r0, g0, b0, 255),  # First color with alpha=255
+        (r1, g1, b1, 255)  # Second color with alpha=255
+    ]
+
+    # If color0 > color1, we use linear interpolation for colors 2 and 3
+    if color0 > color1:
+        palette.append((
+            (2 * r0 + r1) // 3,
+            (2 * g0 + g1) // 3,
+            (2 * b0 + b1) // 3,
+            255
+        ))
+        palette.append((
+            (r0 + 2 * r1) // 3,
+            (g0 + 2 * g1) // 3,
+            (b0 + 2 * b1) // 3,
+            255
+        ))
+    else:
+        # Otherwise color 2 is average, color 3 is transparent black
+        palette.append((
+            (r0 + r1) // 2,
+            (g0 + g1) // 2,
+            (b0 + b1) // 2,
+            255
+        ))
+        palette.append((0, 0, 0, 0))  # Transparent
+
+    # Extract color indices (4 bytes, 2 bits per pixel)
+    indices = np.zeros(16, dtype=np.uint8)
+    for i in range(4):
+        byte = block_data[i + 4]
+        for j in range(4):
+            pixel_idx = i * 4 + j
+            indices[pixel_idx] = (byte >> (j * 2)) & 0x3
+
+    # Fill the pixels array
+    for i in range(4):
+        for j in range(4):
+            if y + i < height and x + j < width:
+                color_idx = indices[i * 4 + j]
+                color = palette[color_idx]
+                pixels[y + i, x + j, :3] = color[:3] # R, G, B
+                if pixels.shape[2] > 3:  # If we have alpha
+                    pixels[y + i, x + j, 3] = color[3]  # A
+
+
+def _decompress_dxt3_block(block_data, pixels, x, y, width, height):
+    """
+    Decompress a DXT3 block (16 bytes total)
+
+    Format:
+    - 8 bytes: alpha values (4 bits per pixel)
+    - 8 bytes: color data (same as DXT1)
+    """
+    # Extract explicit alpha values (8 bytes, 4 bits per pixel)
+    alphas = np.zeros(16, dtype=np.uint8)
+    for i in range(8):
+        byte = block_data[i]
+        alphas[i * 2] = (byte & 0xF) * 17  # Scale 0-15 to 0-255
+        alphas[i * 2 + 1] = (byte >> 4) * 17
+
+    # Handle color data (same as DXT1 but always use 4-color mode)
+    color_data = block_data[8:16]
+
+    # Extract the two color values (stored as RGB565)
+    color0 = color_data[0] | (color_data[1] << 8)
+    color1 = color_data[2] | (color_data[3] << 8)
+
+    # Convert RGB565 to RGB888
+    r0 = ((color0 >> 11) & 31) * 255 // 31
+    g0 = ((color0 >> 5) & 63) * 255 // 63
+    b0 = (color0 & 31) * 255 // 31
+
+    r1 = ((color1 >> 11) & 31) * 255 // 31
+    g1 = ((color1 >> 5) & 63) * 255 // 63
+    b1 = (color1 & 31) * 255 // 31
+
+    # Create the color palette - DXT3 always uses 4 colors
+    palette = [
+        (r0, g0, b0),
+        (r1, g1, b1),
+        ((2 * r0 + r1) // 3, (2 * g0 + g1) // 3, (2 * b0 + b1) // 3),
+        ((r0 + 2 * r1) // 3, (g0 + 2 * g1) // 3, (b0 + 2 * b1) // 3)
+    ]
+
+    # Extract color indices
+    indices = np.zeros(16, dtype=np.uint8)
+    for i in range(4):
+        byte = color_data[i + 4]
+        for j in range(4):
+            pixel_idx = i * 4 + j
+            indices[pixel_idx] = (byte >> (j * 2)) & 0x3
+
+    # Fill the pixels array
+    for i in range(4):
+        for j in range(4):
+            if y + i < height and x + j < width:
+                color_idx = indices[i * 4 + j]
+                color = palette[color_idx]
+                alpha = alphas[i * 4 + j]
+
+                pixels[y + i, x + j, :3] = color # R, G, B
+                pixels[y + i, x + j, 3] = alpha  # A
+
+
+def _decompress_dxt5_block(block_data, pixels, x, y, width, height):
+    """
+    Decompress a DXT5 block (16 bytes total)
+
+    Format:
+    - 1 byte: alpha0
+    - 1 byte: alpha1
+    - 6 bytes: alpha indices (3 bits per pixel)
+    - 8 bytes: color data (same as DXT1)
+    """
+    # Extract alpha endpoints
+    alpha0, alpha1 = block_data[0], block_data[1]
+
+    # Create alpha palette
+    alpha_palette = [alpha0, alpha1]
+    if alpha0 > alpha1:
+        # 8-value alpha
+        for i in range(6):
+            alpha_palette.append(((6 - i) * alpha0 + (i + 1) * alpha1) // 7)
+    else:
+        # 6-value alpha + transparent + opaque
+        for i in range(4):
+            alpha_palette.append(((4 - i) * alpha0 + (i + 1) * alpha1) // 5)
+        alpha_palette.append(0)  # Fully transparent
+        alpha_palette.append(255)  # Fully opaque
+
+    # Extract alpha indices (6 bytes for 16 pixels, 3 bits per pixel)
+    alpha_indices = np.zeros(16, dtype=np.uint8)
+
+    # This is complex - we have 3 bits per pixel across 6 bytes
+    bits = 0
+    current_byte = 0
     for i in range(16):
-        rgba[4 * i + 3] = codes[indices[i]]
+        # We need 3 bits for each index
+        if bits < 3:
+            # Need to load more data
+            current_byte |= block_data[2 + (i * 3) // 8] << bits
+            bits += 8
 
+        # Extract 3 bits
+        alpha_indices[i] = current_byte & 0x7
+        current_byte >>= 3
+        bits -= 3
 
-def decompress(rgba: bytearray, block: bytes, block_index: int, flags: DXTFlags):
-    # get the block locations
-    color_block_index = block_index
+    # Handle color data (same as DXT1)
+    color_data = block_data[8:16]
 
-    if flags & (DXTFlags.DXT3 | DXTFlags.DXT5):
-        color_block_index += 8
+    # Extract the two color values (stored as RGB565)
+    color0 = color_data[0] | (color_data[1] << 8)
+    color1 = color_data[2] | (color_data[3] << 8)
 
-    # decompress color
-    decompress_color(rgba, block, color_block_index, (flags & DXTFlags.DXT1) != 0)
+    # Convert RGB565 to RGB888
+    r0 = ((color0 >> 11) & 31) * 255 // 31
+    g0 = ((color0 >> 5) & 63) * 255 // 63
+    b0 = (color0 & 31) * 255 // 31
 
-    # decompress alpha separately if necessary
-    if flags & DXTFlags.DXT3:
-        decompress_alpha_dxt3(rgba, block, block_index)
-    elif flags & DXTFlags.DXT5:
-        decompress_alpha_dxt5(rgba, block, block_index)
+    r1 = ((color1 >> 11) & 31) * 255 // 31
+    g1 = ((color1 >> 5) & 63) * 255 // 63
+    b1 = (color1 & 31) * 255 // 31
 
+    # Create the color palette - for DXT5 we always use 4 colors
+    palette = [
+        (r0, g0, b0),
+        (r1, g1, b1),
+        ((2 * r0 + r1) // 3, (2 * g0 + g1) // 3, (2 * b0 + b1) // 3),
+        ((r0 + 2 * r1) // 3, (g0 + 2 * g1) // 3, (b0 + 2 * b1) // 3)
+    ]
 
-def decompress_image(width: int, height: int, data: bytes, flags: DXTFlags) -> bytearray:
-    rgba = bytearray(width * height * 4)
+    # Extract color indices
+    indices = np.zeros(16, dtype=np.uint8)
+    for i in range(4):
+        byte = color_data[i + 4]
+        for j in range(4):
+            pixel_idx = i * 4 + j
+            indices[pixel_idx] = (byte >> (j * 2)) & 0x3
 
-    # initialise the block input
-    source_block_pos: int = 0
-    bytes_per_block: int = 8 if flags & DXTFlags.DXT1 else 16
-    target_rgba = bytearray(4 * 16)
+    # Fill the pixels array
+    for i in range(4):
+        for j in range(4):
+            if y + i < height and x + j < width:
+                color_idx = indices[i * 4 + j]
+                alpha_idx = alpha_indices[i * 4 + j]
 
-    # loop over blocks
-    for y in range(0, height, 4):
-        for x in range(0, width, 4):
-            # decompress the block
-            target_rgba_pos = 0
-            if len(data) == source_block_pos:
-                continue
+                color = palette[color_idx]
+                alpha = alpha_palette[alpha_idx]
 
-            decompress(target_rgba, data, source_block_pos, flags)
-
-            # Write the decompressed pixels to the correct image locations
-            for py in range(4):
-                for px in range(4):
-                    sx = x + px
-                    sy = y + py
-                    if sx < width and sy < height:
-                        target_pixel = 4 * (width * sy + sx)
-                        rgba[target_pixel:target_pixel + 4] = target_rgba[target_rgba_pos:target_rgba_pos + 4]
-                        target_rgba_pos += 4
-                    else:
-                        # Ignore that pixel
-                        target_rgba_pos += 4
-
-            source_block_pos += bytes_per_block
-
-    return rgba
+                pixels[y + i, x + j, :3] = color # R, G, B
+                pixels[y + i, x + j, 3] = alpha  # A

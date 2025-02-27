@@ -35,4 +35,4 @@ def decompress_mipmap(mipmap):
             mipmap.data = decompress_image(
                 mipmap.width, mipmap.height, mipmap.data, DXTFlags.DXT1
             )
-            mipmap.format = MipmapFormat.RGBA8888
+            mipmap.format = MipmapFormat.RGB888
