@@ -2,18 +2,16 @@ from .enums import DXTFlags
 import numpy as np
 
 
-def decompress_image(width: int, height: int, data: bytes, format_type: DXTFlags):
+def decompress_image(width: int, height: int, data: bytes, format_type: DXTFlags) -> bytes:
     """
     Decompress headerless DXT/S3TC compressed texture data
 
-    Args:
-        width: Width of the texture
-        height: Height of the texture
-        data: Raw compressed bytes or bytearray
-        format_type: String indicating format - "DXT1", "DXT3", or "DXT5"
+    :param width: Width of the texture
+    :param height: Height of the texture
+    :param data: Raw compressed bytes or bytearray
+    :param format_type: DXT format type (DXT1, DXT3, DXT5)
+    :return: Decompressed pixel data as bytes
 
-    Returns:
-        PIL Image object containing the decompressed texture
     """
     # Calculate block size and bytes per block based on format
     if format_type == DXTFlags.DXT1:
