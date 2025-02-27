@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import BinaryIO, List, Union, Callable
 
 from PIL import Image as Img
+from PIL import UnidentifiedImageError
 from PIL.Image import Image
 
 from . import enums
@@ -215,9 +216,12 @@ class Texture:
 
     @staticmethod
     def _create_image(mipmap: TexMipmap, mode: str = "RGBA") -> Image:
-        return Img.frombuffer(
-            mode, (mipmap.width, mipmap.height), mipmap.data, "raw", mode, 0, 1
-        )
+        try:
+            return Img.open(BytesIO(mipmap.data))
+        except UnidentifiedImageError:
+            return Img.frombuffer(
+                mode, (mipmap.width, mipmap.height), mipmap.data, "raw", mode, 0, 1
+            )
 
     @property
     def is_gif(self) -> bool:
