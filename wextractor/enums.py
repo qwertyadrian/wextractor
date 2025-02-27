@@ -101,8 +101,8 @@ class FreeImageFormat(Enum):
 
 
 class MipmapFormat(Enum):
-    def isImage(self, mipmapFormat):
-        return mipmapFormat.value >= self.ImageBMP.value
+    def is_image(self, mipmap_format):
+        return mipmap_format.value >= self.ImageBMP.value
 
     Invalid = 0
     # Raw pixels (4 bytes per pixel) (RGBA8888)

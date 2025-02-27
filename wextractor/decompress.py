@@ -17,7 +17,7 @@ def decompress_mipmap(mipmap):
         mipmap.data = lz4decompress(mipmap.data, mipmap.decompressed_bytes_count)
         mipmap.is_lz4_compressed = False
 
-    if mipmap.format.isImage(mipmap.format):
+    if mipmap.format.is_image(mipmap.format):
         return mipmap
 
     match mipmap.format:
