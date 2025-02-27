@@ -68,7 +68,9 @@ class TexFrameInfoContainer:
                     data = read_n_bytes(self._fd, "<if6i")
                     self.frames.append(TexFrameInfo(*data))
             case "TEXS0002":
-                pass
+                for i in range(frames_count):
+                    data = read_n_bytes(self._fd, "<i7f")
+                    self.frames.append(TexFrameInfo(*data))
             case "TEXS0003":
                 self.gif_width, self.gif_height = read_n_bytes(self._fd, "<2i")
                 for i in range(frames_count):
