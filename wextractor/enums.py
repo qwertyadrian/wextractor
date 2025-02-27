@@ -104,6 +104,10 @@ class MipmapFormat(Enum):
     def is_image(self, mipmap_format):
         return mipmap_format.value >= self.ImageBMP.value
 
+    def is_raw(self):
+        return self.RGBA8888.value <= self.value <= self.RG88.value
+
+    # Invalid format
     Invalid = 0
     # Raw pixels (4 bytes per pixel) (RGBA8888)
     RGBA8888 = 1

@@ -157,6 +157,16 @@ class Texture:
             reader.read()
             self.images_container.images.append(reader)
 
+    def converted_format(self) -> enums.MipmapFormat:
+        if self.is_gif:
+            return enums.MipmapFormat.ImageGIF
+        elif self.is_video_texture:
+            return enums.MipmapFormat.VideoMP4
+        else:
+            format_ = self.images_container.first_image.first_mipmap.format
+            return enums.MipmapFormat.ImagePNG if format_.is_raw() else format_
+
+
     def save(self, path: Union[Path, str] = ""):
         path = Path(path)
 
@@ -253,7 +263,7 @@ class TexImage:
     mipmaps: List[TexMipmap] = field(default_factory=list)
 
     @property
-    def first_mipmap(self):
+    def first_mipmap(self) -> TexMipmap:
         return self.mipmaps[0]
 
     def read(self):
