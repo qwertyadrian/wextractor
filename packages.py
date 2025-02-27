@@ -60,3 +60,6 @@ class Package:
 
         with path.open("wb"):
             path.write_bytes(file.data)
+
+    def __del__(self):
+        self._fd.close()
