@@ -65,14 +65,14 @@ class TexFrameInfoContainer:
         match self.magic:
             case "TEXS0001":
                 for i in range(frames_count):
-                    data = read_n_bytes(self._fd, "<ifiiiiii")
+                    data = read_n_bytes(self._fd, "<if6i")
                     self.frames.append(TexFrameInfo(*data))
             case "TEXS0002":
                 pass
             case "TEXS0003":
-                self.gif_width, self.gif_height = read_n_bytes(self._fd, "<ii")
+                self.gif_width, self.gif_height = read_n_bytes(self._fd, "<2i")
                 for i in range(frames_count):
-                    data = read_n_bytes(self._fd, "<ifffffff")
+                    data = read_n_bytes(self._fd, "<i7f")
                     self.frames.append(TexFrameInfo(*data))
             case _:
                 raise UnknownMagicError(self.magic)
@@ -89,7 +89,7 @@ class TexFrameInfoContainer:
 class Texture:
     # equal to char[8], pad byte, char[8], pad byte and 7 int
     # in little-endian byte order
-    HEADER_STRUCT = "<8sx8sxiiiiiii"
+    HEADER_STRUCT = "<8sx8sx7i"
 
     def __init__(self, file: Union[str, bytes, BinaryIO, BytesIO]):
         if isinstance(file, str):
@@ -141,7 +141,7 @@ class Texture:
                 except ValueError:
                     self.images_container.format = enums.FreeImageFormat.FIF_UNKNOWN
             case _:
-                raise UnknownMagicError(self.imagesContainer.magic)
+                raise UnknownMagicError(self.images_container.magic)
 
         self.images_container.version = enums.TexImageContainerVersion(
             int(self.images_container.magic[4:])
