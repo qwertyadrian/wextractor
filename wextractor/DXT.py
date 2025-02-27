@@ -67,10 +67,7 @@ def decompress_color(rgba: bytearray, block: bytes, block_index: int, is_dxt1: b
         # store out the colours
         for i in range(16):
             offset = 4 * indices[i]
-            rgba[4 * i + 0] = codes[offset + 0]
-            rgba[4 * i + 1] = codes[offset + 1]
-            rgba[4 * i + 2] = codes[offset + 2]
-            rgba[4 * i + 3] = codes[offset + 3]
+            rgba[4 * i:4 * i + 4] = codes[offset:offset + 4]
 
 
 def decompress_alpha_dxt3(rgba: bytearray, block: bytes, block_index: int):
@@ -98,13 +95,13 @@ def decompress_alpha_dxt5(rgba: bytearray, block: bytes, block_index: int):
     codes[1] = alpha1
     if alpha0 <= alpha1:
         # Use 5-Alpha Codebook
-        for i in range(5):
+        for i in range(1, 5):
             codes[1 + i] = ((5 - i) * alpha0 + i * alpha1) // 5
             codes[6] = 0
             codes[7] = 255
     else:
         # Use 7-Alpha Codebook
-        for i in range(5):
+        for i in range(1, 7):
             codes[i + 1] = ((7 - i) * alpha0 + i * alpha1) // 7
 
     # decode indices
@@ -115,9 +112,8 @@ def decompress_alpha_dxt5(rgba: bytearray, block: bytes, block_index: int):
         # grab 3 bytes
         value = 0
         for j in range(3):
-            byte = block[block_index + block_src_pos]
+            value |= block[block_index + block_src_pos] << (8 * j)
             block_src_pos += 1
-            value |= byte << 8 * j
 
         # unpack 8 3-bit values from it
         for j in range(8):
@@ -134,25 +130,25 @@ def decompress(rgba: bytearray, block: bytes, block_index: int, flags: DXTFlags)
     # get the block locations
     color_block_index = block_index
 
-    if (flags & (DXTFlags.DXT3 | DXTFlags.DXT5)) != 0:
+    if flags & (DXTFlags.DXT3 | DXTFlags.DXT5):
         color_block_index += 8
 
     # decompress color
     decompress_color(rgba, block, color_block_index, (flags & DXTFlags.DXT1) != 0)
 
     # decompress alpha separately if necessary
-    if (flags & DXTFlags.DXT3) != 0:
+    if flags & DXTFlags.DXT3:
         decompress_alpha_dxt3(rgba, block, block_index)
-    elif (flags & DXTFlags.DXT5) != 0:
+    elif flags & DXTFlags.DXT5:
         decompress_alpha_dxt5(rgba, block, block_index)
 
 
-def decompress_image(width: int, height: int, data: bytes, flags: DXTFlags):
+def decompress_image(width: int, height: int, data: bytes, flags: DXTFlags) -> bytearray:
     rgba = bytearray(width * height * 4)
 
     # initialise the block input
     source_block_pos: int = 0
-    bytes_per_block: int = 8 if (flags & DXTFlags.DXT1) != 0 else 16
+    bytes_per_block: int = 8 if flags & DXTFlags.DXT1 else 16
     target_rgba = bytearray(4 * 16)
 
     # loop over blocks
@@ -172,10 +168,7 @@ def decompress_image(width: int, height: int, data: bytes, flags: DXTFlags):
                     sy = y + py
                     if sx < width and sy < height:
                         target_pixel = 4 * (width * sy + sx)
-                        rgba[target_pixel + 0] = target_rgba[target_rgba_pos + 0]
-                        rgba[target_pixel + 1] = target_rgba[target_rgba_pos + 1]
-                        rgba[target_pixel + 2] = target_rgba[target_rgba_pos + 2]
-                        rgba[target_pixel + 3] = target_rgba[target_rgba_pos + 3]
+                        rgba[target_pixel:target_pixel + 4] = target_rgba[target_rgba_pos:target_rgba_pos + 4]
                         target_rgba_pos += 4
                     else:
                         # Ignore that pixel
