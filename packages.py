@@ -16,6 +16,7 @@ class Package:
         self.filename = filename
         self.filecount: int = 0
         self.files: List[File] = list()
+        self.version: str = ""
         self._fd: BinaryIO
         self._ds_ptr: int = 0
         self._prepare_file()
@@ -27,7 +28,7 @@ class Package:
         self._read_header()
 
     def _read_header(self):
-        version = self._read_str()
+        self.version = self._read_str()
         self.filecount = int.from_bytes(self._fd.read(4), "little", signed=False)
 
     def _read_str(self) -> str:
