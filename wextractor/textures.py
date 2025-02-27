@@ -2,25 +2,25 @@ from dataclasses import dataclass, field
 from io import BytesIO
 from math import atan2, copysign, degrees, pi
 from pathlib import Path
-from typing import BinaryIO, List, Union
+from typing import BinaryIO, List, Union, Callable
 
-from PIL import Image
+from PIL import Image as Img
+from PIL.Image import Image
 
 from . import enums
 from .decompress import decompress_mipmap
-from .exceptions import (InvalidContainerVersion, InvalidTextureFormat,
-                        UnknownMagicError)
+from .exceptions import InvalidContainerVersion, InvalidTextureFormat, UnknownMagicError
 from .extensions import get_format_for_tex, is_valid_format, read_n_bytes
 
 
 @dataclass
 class TexMipmap:
     data: bytes = field(repr=False)
-    width: int = None
-    height: int = None
-    decompressed_bytes_count: int = None
-    is_lz4_compressed: bool = None
-    format: enums.MipmapFormat = None
+    width: int
+    height: int
+    is_lz4_compressed: bool = False
+    decompressed_bytes_count: int = 0
+    format: enums.MipmapFormat = enums.MipmapFormat.Invalid
 
     def get_bytes_stream(self) -> BytesIO:
         return BytesIO(self.data)
@@ -28,7 +28,7 @@ class TexMipmap:
 
 @dataclass
 class TexImageContainer:
-    magic: str = None
+    magic: str
     images: List["TexImage"] = field(default_factory=list)
     version: enums.TexImageContainerVersion = None
     format: enums.FreeImageFormat = enums.FreeImageFormat.FIF_UNKNOWN
@@ -53,7 +53,7 @@ class TexFrameInfo:
 @dataclass
 class TexFrameInfoContainer:
     _fd: Union[BinaryIO, BytesIO]
-    magic: str = None
+    magic: str = ""
     frames: List[TexFrameInfo] = field(default_factory=list)
     gif_width: int = 0
     gif_height: int = 0
@@ -82,7 +82,7 @@ class TexFrameInfoContainer:
             self.gif_height = int(self.first_frame.height)
 
     @property
-    def first_frame(self):
+    def first_frame(self) -> TexFrameInfo:
         return self.frames[0]
 
 
@@ -101,7 +101,6 @@ class Texture:
         self._read_header()
         self._read_image_container()
 
-        self.frame_info_container = None
         if self.is_gif:
             self.frame_info_container = TexFrameInfoContainer(self._fd)
             self.frame_info_container.read()
@@ -155,11 +154,11 @@ class Texture:
             reader.read()
             self.images_container.images.append(reader)
 
-    def save(self, path: Union[Path, str] = None):
+    def save(self, path: Union[Path, str] = ""):
         path = Path(path)
 
         if self.is_gif:
-            frames = list()
+            frames: list[Image] = list()
             for frame in self.frame_info_container.frames:
                 width = frame.width if frame.width != 0 else frame.height_x
                 height = frame.height if frame.height != 0 else frame.width_y
@@ -170,7 +169,9 @@ class Texture:
                     degrees(atan2(copysign(1, height), copysign(1, width)) - pi / 4)
                 )
 
-                image = self._create_image(self.images_container.first_image.first_mipmap)
+                image = self._create_image(
+                    self.images_container.first_image.first_mipmap
+                )
 
                 frames.insert(
                     frame.image_id,
@@ -197,8 +198,8 @@ class Texture:
                     (0, 0, self.imageWidth, self.imageHeight)
                 ).save(path)
             elif self.images_container.first_image.first_mipmap.format in (
-                    enums.MipmapFormat.R8,
-                    enums.MipmapFormat.RG88,
+                enums.MipmapFormat.R8,
+                enums.MipmapFormat.RG88,
             ):
                 self._create_image(
                     self.images_container.first_image.first_mipmap, "L"
@@ -206,13 +207,13 @@ class Texture:
             else:
                 raise InvalidTextureFormat("Unable to save compressed data")
         else:
-            Image.open(
+            Img.open(
                 self.images_container.first_image.first_mipmap.get_bytes_stream()
             ).save(path)
 
     @staticmethod
     def _create_image(mipmap: TexMipmap, mode: str = "RGBA") -> Image:
-        return Image.frombuffer(
+        return Img.frombuffer(
             mode, (mipmap.width, mipmap.height), mipmap.data, "raw", mode, 0, 1
         )
 
@@ -280,7 +281,7 @@ class TexImage:
         return bytes_read
 
     @staticmethod
-    def pick_mipmap_reader(version: enums.TexImageContainerVersion) -> callable:
+    def pick_mipmap_reader(version: enums.TexImageContainerVersion) -> Callable:
         match version:
             case enums.TexImageContainerVersion.Version1:
                 return TexImage.read_mipmap_v1
